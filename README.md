@@ -67,6 +67,16 @@ _One C core and GLES2 for the iPhone 4S on iOS 6, the iPhone, and the Mac_
 <p align="center"><i>The title screen</i></p>
 </td>
 </tr>
+<tr>
+<td width="50%" valign="top">
+<img src="assets/screenshots/4s-inventory.png" alt="The inventory screen on the 4S: the player model, the crafting grid, and cobblestone, torches, a diamond sword, and apples in the hotbar">
+<p align="center"><i>The inventory on the 4S</i></p>
+</td>
+<td width="50%" valign="top">
+<img src="assets/screenshots/4s-torch.png" alt="The 4S at night: a torch lights the sand at the shore of the lake, and another player stands on the sand">
+<p align="center"><i>Torch light at night on the 4S</i></p>
+</td>
+</tr>
 </table>
 
 ## Overview
@@ -90,8 +100,12 @@ OpenGL ES 2.0. The iPhone and the Mac use ANGLE on Metal.
 - The physics of Beta: the walk speed, the jump, the step up, the water,
   and the ladders
 - Breaking with the dig time of Beta for each block and tool, and placing
-- The other players with their skin, and the mobs as boxes
-- The hotbar, the hearts, and the chat
+- The other players with their skin, the mobs with the models and the
+  textures of Beta, and the dropped items
+- The hotbar, the hearts, the chat, and the inventory, chest, workbench,
+  furnace, and dispenser screens
+- The moving water and lava of Beta, and the light that spreads again
+  after each block change
 - The touch controls on the phones, and the keyboard and the mouse on the
   Mac
 - A version browser that measures the device and tags the best version
