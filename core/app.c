@@ -1553,6 +1553,8 @@ void fern_app_command(FernApp *app, const char *line) {
         app->input.use = 1;
     } else if (!strcmp(line, "jump")) {
         app->keys[FK_JUMP] = 1;
+    } else if (sscanf(line, "jump %f", &x) == 1) {
+        app->keys[FK_JUMP] = x != 0;
     } else if (sscanf(line, "hold %f", &x) == 1) {
         fern_client_hold(&app->client, (int)x);
     } else if (sscanf(line, "shot %1023s", app->shot_path) == 1) {

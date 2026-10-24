@@ -56,7 +56,7 @@ const char *fern_app_data_dir(FernApp *app);
 void fern_app_probe(FernApp *app, const char *host, int port, const char *name);
 // Run a command, for a test or a debug build: "connect HOST NAME",
 // "say TEXT", "walk F S", "look YAW PITCH", "attack 0|1", "use", "hold N",
-// "screen NAME", "inventory", "click SLOT RIGHT", "closewin", and the test
+// "screen NAME", "jump [0|1]", "inventory", "click SLOT RIGHT", "closewin", and the test
 // commands "fakemob TYPE", "fakeitem ID", "lookmob", and "shot FILE".
 void fern_app_command(FernApp *app, const char *line);
 void fern_app_free(FernApp *app);
