@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include "client.h"
 #include "draw2d.h"
+#include "fx.h"
 #include "fern_version.h"
 #include "gfx.h"
 #include "log.h"
@@ -67,6 +68,8 @@ struct FernApp {
     GLuint tex_terrain, tex_gui, tex_items, tex_icons, tex_char, tex_white;
     GLuint tex_mob[256];      // The texture of each mob type, from the jar.
     GLuint tex_fur;           // The wool of a sheep.
+    FernFx fx_water, fx_lava; // The moving textures, in tiles 205 and 237.
+    double fx_time;
     int have_jar;
     char jar_error[256];
     FernVertexList models;
@@ -291,6 +294,8 @@ FernApp *fern_app_new(const FernAppConfig *config) {
     app->scale = 1;
     app->screen = SCREEN_MENU;
     app->splash = (int)(fern_bench_now() * 7) % 8;
+    fern_fx_init(&app->fx_water, 0, 1);
+    fern_fx_init(&app->fx_lava, 1, 2);
     return app;
 }
 
@@ -1002,6 +1007,17 @@ static void draw_world(FernApp *app) {
     // The view: pitch around x, then yaw around y. The camera looks along +z at yaw 0.
     view = fern_mat_mul(fern_mat_rotate(c->body.pitch, 1, 0, 0), fern_mat_rotate(c->body.yaw + 180.0f, 0, 1, 0));
     vp = fern_mat_mul(proj, view);
+    // Move the water and the lava at 20 ticks a second, as Beta does.
+    if (app->now - app->fx_time > 1.0) app->fx_time = app->now;
+    while (app->fx_time <= app->now) {
+        uint8_t tile[16 * 16 * 4];
+        glBindTexture(GL_TEXTURE_2D, app->tex_terrain);
+        fern_fx_step(&app->fx_water, tile);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, (205 & 15) * 16, (205 >> 4) * 16, 16, 16, GL_RGBA, GL_UNSIGNED_BYTE, tile);
+        fern_fx_step(&app->fx_lava, tile);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, (237 & 15) * 16, (237 >> 4) * 16, 16, 16, GL_RGBA, GL_UNSIGNED_BYTE, tile);
+        app->fx_time += 1.0 / 20.0;
+    }
     fern_terrain_update(app->terrain, &c->world, ex, ey, ez, app->opt.render);
     fern_terrain_draw(app->terrain, &vp, ex, ey, ez, &look);
 
