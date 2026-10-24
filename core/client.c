@@ -388,6 +388,8 @@ static void tick_actions(FernClient *c, const FernInput *in) {
         const FernItem *it = held_item(c);
         c->use_cooldown = 4;
         fern_send_animation(&c->out, c->v, c->self_id, 1);
+        fern_log("use: aim %d (%.2f %.2f %.2f), target %d at %d %d %d face %d", in->aim, dx, dy, dz, c->target.hit,
+                 c->target.x, c->target.y, c->target.z, c->target.face);
         if (c->target.hit) {
             int x = c->target.x, y = c->target.y, z = c->target.z;
             int under = FERN_BLOCK(fern_world_get(&c->world, x, y, z));
