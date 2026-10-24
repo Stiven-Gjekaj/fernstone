@@ -35,7 +35,7 @@ targets:
         CLANG_ENABLE_OBJC_ARC: "YES"
         GCC_C_LANGUAGE_STANDARD: c99
         GCC_PREPROCESSOR_DEFINITIONS: ["FERN_ANGLE=1", "GL_GLEXT_PROTOTYPES=1", "EGL_EGLEXT_PROTOTYPES=1"]
-        HEADER_SEARCH_PATHS: ["$(SRCROOT)/../../core", "$(SRCROOT)/../../core/render", "$(SRCROOT)/../../core/world", "$(SRCROOT)/../../core/proto/beta", "$(SRCROOT)/../../deps/angle/include"]
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/../../core", "$(SRCROOT)/../../core/render", "$(SRCROOT)/../../core/world", "$(SRCROOT)/../../core/assets", "$(SRCROOT)/../../core/proto/beta", "$(SRCROOT)/../../deps/angle/include"]
         "LIBRARY_SEARCH_PATHS[sdk=iphoneos*]": "$(SRCROOT)/../../deps/angle/ios"
         "LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]": "$(SRCROOT)/../../deps/angle/ios-sim"
         OTHER_LDFLAGS: ["-langle", "-lz", "-lc++", "-framework", "Metal", "-framework", "IOSurface", "-framework", "QuartzCore", "-framework", "CoreGraphics"]
