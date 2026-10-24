@@ -1,5 +1,5 @@
 // fernstone-cli: a client with no window, for tests on the Mac.
-// Usage: fernstone-cli HOST[:PORT] NAME [--seconds N] [--script FILE]
+// Usage: fernstone-cli HOST[:PORT] NAME [--seconds N] [--script FILE] [--version ID]
 // It connects, logs in, receives the chunks, and answers the keep-alives.
 // It reads commands from the script, or from stdin when there is no script:
 //   say TEXT          send a chat line
@@ -60,8 +60,9 @@ int main(int argc, char **argv) {
     char line[512];
     int jump_once = 0, use_once = 0;
     char *colon;
+    const FernVersion *version = fern_version_latest();
     if (argc < 3) {
-        fprintf(stderr, "usage: fernstone-cli HOST[:PORT] NAME [--seconds N] [--script FILE]\n");
+        fprintf(stderr, "usage: fernstone-cli HOST[:PORT] NAME [--seconds N] [--script FILE] [--version ID]\n");
         return 2;
     }
     snprintf(host, sizeof(host), "%s", argv[1]);
@@ -73,12 +74,19 @@ int main(int argc, char **argv) {
     for (i = 3; i < argc; i++) {
         if (!strcmp(argv[i], "--seconds") && i + 1 < argc) seconds = atof(argv[++i]);
         else if (!strcmp(argv[i], "--script") && i + 1 < argc) script = fopen(argv[++i], "r");
+        else if (!strcmp(argv[i], "--version") && i + 1 < argc) {
+            version = fern_version_find(argv[++i]);
+            if (!version) {
+                fprintf(stderr, "fernstone-cli: no version %s\n", argv[i]);
+                return 2;
+            }
+        }
     }
     if (!script) fcntl(0, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK);
     memset(&in, 0, sizeof(in));
     fern_client_init(&c);
     start = now_s();
-    fern_client_connect(&c, fern_version_latest(), host, port, argv[2]);
+    fern_client_connect(&c, version, host, port, argv[2]);
     for (;;) {
         double t = now_s();
         if (seconds > 0 && t - start > seconds) break;
