@@ -3,6 +3,6 @@
 #ifndef FERN_APP_VERSION_H
 #define FERN_APP_VERSION_H
 
-#define FERN_APP_VERSION "1.0.0"
+#define FERN_APP_VERSION "1.1.0"
 
 #endif
