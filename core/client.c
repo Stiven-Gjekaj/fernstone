@@ -252,6 +252,12 @@ static void handle(FernClient *c, const FernPacket *p) {
         }
         break;
     }
+    case 0x64:
+        // There is no screen for a chest, a furnace, or a workbench yet.
+        // Close the window at once, so that the server does not wait.
+        fern_send_close_window(&c->out, c->v, p->u.open_window.window);
+        add_chat(c, "\xC2\xA7" "7Fernstone has no inventory screen yet.");
+        break;
     case 0x67:
         if (p->u.set_slot.window == 0 && p->u.set_slot.slot >= 0 && p->u.set_slot.slot < 45)
             c->inv[p->u.set_slot.slot] = p->u.set_slot.item;
@@ -319,6 +325,19 @@ static void look_dir(float yaw, float pitch, double *dx, double *dy, double *dz)
     *dz = cos(y) * cos(p);
 }
 
+// The blocks that a use opens or switches. A place on them does not put a
+// block, so the client does not show one.
+static int is_used_block(int block) {
+    switch (block) {
+    case B_CHEST: case B_LOCKED_CHEST: case B_WORKBENCH: case B_FURNACE: case B_FURNACE_LIT:
+    case B_DISPENSER: case B_NOTE: case B_JUKEBOX: case B_BED: case B_DOOR_WOOD: case B_DOOR_IRON:
+    case B_TRAPDOOR: case B_LEVER: case B_BUTTON: case B_REPEATER_OFF: case B_REPEATER_ON: case B_CAKE:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 static void stop_dig(FernClient *c) {
     c->digging = 0;
     c->dig_done = 0;
@@ -327,7 +346,13 @@ static void stop_dig(FernClient *c) {
 static void tick_actions(FernClient *c, const FernInput *in) {
     double dx, dy, dz;
     int item = held_item(c)->id;
-    look_dir(c->body.yaw, c->body.pitch, &dx, &dy, &dz);
+    if (in->aim) {
+        dx = in->aim_x;
+        dy = in->aim_y;
+        dz = in->aim_z;
+    } else {
+        look_dir(c->body.yaw, c->body.pitch, &dx, &dy, &dz);
+    }
     c->target = fern_raycast(&c->world, c->body.x, c->body.y + FERN_EYE_HEIGHT, c->body.z, dx, dy, dz, REACH);
     if (c->use_cooldown > 0) c->use_cooldown--;
 
@@ -368,8 +393,7 @@ static void tick_actions(FernClient *c, const FernInput *in) {
             int under = FERN_BLOCK(fern_world_get(&c->world, x, y, z));
             fern_send_place(&c->out, c->v, x, y, z, c->target.face, it);
             // Show a placed block at once. The server sends the true block.
-            if (it->id > 0 && it->id < 256 && under != B_CHEST && under != B_WORKBENCH && under != B_FURNACE &&
-                under != B_DOOR_WOOD && under != B_LEVER && under != B_BUTTON) {
+            if (it->id > 0 && it->id < 256 && !is_used_block(under)) {
                 int block = fern_block_from_wire(c->v->block_table, it->id);
                 FernBox me, boxes[2];
                 int n, i, blocked = 0;

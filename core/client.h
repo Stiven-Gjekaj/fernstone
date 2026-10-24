@@ -33,6 +33,8 @@ typedef struct {
     float yaw, pitch;        // Degrees
     int attack;              // Hold to dig the block in the view.
     int use;                 // Set for one frame to place a block or use an item.
+    int aim;                 // 1: dig and place along aim_x, aim_y, aim_z, not
+    float aim_x, aim_y, aim_z; // along the view (a touch under a finger).
 } FernInput;
 
 typedef struct {
