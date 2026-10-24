@@ -9,6 +9,9 @@ for plist in "$ROOT/platform/ios6/Info.plist" "$ROOT/platform/macos/Info.plist";
     plutil -replace CFBundleShortVersionString -string "$V" "$plist"
     plutil -replace CFBundleVersion -string "$V" "$plist"
 done
-sed -i '' "s/MARKETING_VERSION: \"[0-9.]*\"/MARKETING_VERSION: \"$V\"/" "$ROOT/platform/ios/project.yml"
+# The SideStore source gives the tag as the build version, so the build
+# number of the iOS app is the version too.
+sed -i '' -e "s/MARKETING_VERSION: \"[0-9.]*\"/MARKETING_VERSION: \"$V\"/" \
+    -e "s/CURRENT_PROJECT_VERSION: .*/CURRENT_PROJECT_VERSION: \"$V\"/" "$ROOT/platform/ios/project.yml"
 sed -i '' "s/#define FERN_APP_VERSION \"[0-9.]*\"/#define FERN_APP_VERSION \"$V\"/" "$ROOT/core/fern_version.h"
 echo "$V"
