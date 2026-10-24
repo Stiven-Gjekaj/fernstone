@@ -1,0 +1,12 @@
+sdks/
+*.o
+.DS_Store
+
+# Build output
+build/
+
+# The local Poseidon server, its world, and its log
+server/
+
+# Third party code that the scripts fetch and build
+deps/
