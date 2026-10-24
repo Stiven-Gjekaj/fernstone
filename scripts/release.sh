@@ -67,18 +67,17 @@ gh release create "$TAG" -R "$REPO" -t "Fernstone $VERSION" -F build/notes.md \
     git push -q
 )
 
-# The SideStore source: add the app the first time, then build apps.json.
+# The SideStore source: add the app the first time. The workflow of that
+# repository builds apps.json from the GitHub releases, so a new release
+# shows there within about one hour.
 (
     cd "$SIDESTORE"
     if [ ! -f apps/fernstone.json ]; then
         cp "$ROOT/packaging/sidestore.json" apps/fernstone.json
         git add apps/fernstone.json
         git commit -qm "feat: add Fernstone"
+        git push -q
     fi
-    python3 scripts/build.py
-    git add apps.json
-    git commit -qm "feat: add the new release of Fernstone" || true
-    git push -q
 )
 
 # Close the issues of the milestone, then the milestone.
