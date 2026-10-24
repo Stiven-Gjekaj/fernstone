@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.0 (not released)
+
+The menus and the touch controls look like those of Pocket Edition.
+
+- The title screen: the name in cobblestone letters, a turned splash text,
+  a strip of moving terrain, and the text in the middle. The join and the
+  options screens have their own panels.
+- The touch controls: a D-pad with the sneak toggle in its middle, a jump
+  button, and the pause and chat buttons at the top right. The GUI pixels
+  are bigger on a touch screen.
+- A finger aims: a hold breaks the block under the finger, and a tap
+  places on it. Cracks show while a block breaks.
+- The client closes each chest, furnace, or workbench window that the
+  server opens, because there is no inventory screen yet.
+- The delete key removes the characters of a text field on iOS 6.
+  Checked in the iOS 27 simulator. Not checked on the 4S yet.
+
 ## 1.0.0 (2026-10-24)
 
 Version 1 joins Alpha and Beta servers up to b1.7.3 from the iPhone 4S on
