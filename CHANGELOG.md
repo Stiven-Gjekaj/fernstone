@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.0 (2026-10-24)
+
+Version 1 joins Alpha and Beta servers up to b1.7.3 from the iPhone 4S on
+iOS 6, from the iPhone on iOS 15 or later, and from the Mac.
+
+- The iPhone 4S, the Mac, and the iOS 27 simulator joined one Poseidon
+  world at the same time and saw each other. Two clients saw the block
+  changes of each other.
+- The iPhone 15 Pro Max in LiveContainer is not tested yet. The same .ipa
+  ran in the iOS 27 simulator.
+- A death screen with a respawn button.
+- A block that a change opens gets the light of its neighbors, so a new
+  hole is not black.
+- A player that stands in the camera is not drawn.
+
 ## 0.6.0 (2026-10-24)
 
 The version browser shows the Alpha and Beta versions from a1.0.15 to
