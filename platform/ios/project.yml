@@ -1,0 +1,48 @@
+name: Fernstone
+options:
+  bundleIdPrefix: io.github.stivengjekaj
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: 1
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+targets:
+  Fernstone:
+    type: application
+    platform: iOS
+    sources:
+      - path: .
+        excludes:
+          - project.yml
+          - "*.xcodeproj"
+          - build
+      - path: ../../core
+        excludes:
+          - "**/*.h"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.stivengjekaj.fernstone
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: "NO"
+        INFOPLIST_FILE: Info.plist
+        CLANG_ENABLE_OBJC_ARC: "YES"
+        GCC_C_LANGUAGE_STANDARD: c99
+        GCC_PREPROCESSOR_DEFINITIONS: ["FERN_ANGLE=1", "GL_GLEXT_PROTOTYPES=1", "EGL_EGLEXT_PROTOTYPES=1"]
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/../../core", "$(SRCROOT)/../../core/render", "$(SRCROOT)/../../core/world", "$(SRCROOT)/../../core/proto/beta", "$(SRCROOT)/../../deps/angle/include"]
+        "LIBRARY_SEARCH_PATHS[sdk=iphoneos*]": "$(SRCROOT)/../../deps/angle/ios"
+        "LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]": "$(SRCROOT)/../../deps/angle/ios-sim"
+        OTHER_LDFLAGS: ["-langle", "-lz", "-lc++", "-framework", "Metal", "-framework", "IOSurface", "-framework", "QuartzCore", "-framework", "CoreGraphics"]
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Release:
+          DEPLOYMENT_POSTPROCESSING: "YES"
+          STRIP_INSTALLED_PRODUCT: "YES"
+          STRIP_STYLE: all
+          DEAD_CODE_STRIPPING: "YES"
