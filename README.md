@@ -33,10 +33,10 @@ _One C core and GLES2 for the iPhone 4S on iOS 6, the iPhone, and the Mac_
 ---
 
 > [!NOTE]
-> **Version 0.6.0 is the last milestone before 1.0.** The iPhone 4S, the
-> Mac, and the iOS 27 simulator joined one Poseidon world at the same time
-> and saw each other. Two clients saw the block changes of each other. The
-> test of the iPhone 15 Pro Max in LiveContainer is still to do. [CHANGELOG.md](CHANGELOG.md) lists
+> **Version 1.0.0 is out.** The iPhone 4S, the Mac, and the iOS 27
+> simulator joined one Poseidon world at the same time and saw each other.
+> Two clients saw the block changes of each other. The test of the iPhone
+> 15 Pro Max in LiveContainer is still to do. [CHANGELOG.md](CHANGELOG.md) lists
 > the changes of each release. [docs/decisions.md](docs/decisions.md) holds
 > each decision and its reason.
 
