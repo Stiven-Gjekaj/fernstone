@@ -99,8 +99,10 @@ static void quad(Ctx *c, FernVertexList *l, const int p[4][3], int tile, const i
         v[i].y = (int16_t)(c->y * 16 + p[i][1]);
         v[i].z = (int16_t)(c->z * 16 + p[i][2]);
         v[i].pad = 0;
-        v[i].u = (uint16_t)((tx + cu[i]) * 65535 / 256);
-        v[i].v = (uint16_t)((ty + cv[i]) * 65535 / 256);
+        // Keep a small margin from the edge of the tile. Without it, the GPU
+        // of the 4S samples the next tile of the atlas on some pixels.
+        v[i].u = (uint16_t)((tx + cu[i] + (cu[i] == 0 ? 0.05f : cu[i] == 16 ? -0.05f : 0)) * 65535.0f / 256.0f);
+        v[i].v = (uint16_t)((ty + cv[i] + (cv[i] == 0 ? 0.05f : cv[i] == 16 ? -0.05f : 0)) * 65535.0f / 256.0f);
         v[i].r = (uint8_t)(tint[0] * sh);
         v[i].g = (uint8_t)(tint[1] * sh);
         v[i].b = (uint8_t)(tint[2] * sh);
