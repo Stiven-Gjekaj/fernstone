@@ -51,6 +51,15 @@ milestone.
 - Test b1.1_02 on a real b1.1_02 server, and the Alpha versions before
   a1.1.2_01 on real servers.
 
+## Next
+
+- Make the UI again in the style of Minecraft Pocket Edition.
+- Fix the name field on the iPhone 4S: the delete key does not remove the
+  characters of the name.
+- Make the main menus again: put the text in the middle, and use the style
+  of the Minecraft splash art.
+- Fix the use of blocks and the breaking of blocks.
+
 ## Known problems
 
 - A mob is a colored box. A dropped item that is not a block is not drawn.
