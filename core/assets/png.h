@@ -9,4 +9,7 @@
 // Give a new buffer of w * h * 4 bytes, or NULL on an error.
 uint8_t *fern_png_decode(const uint8_t *data, size_t len, int *w, int *h);
 
+// Write RGBA pixels (rows from the top) to a PNG file. Give 0 on an error.
+int fern_png_write(const char *path, const uint8_t *rgba, int w, int h);
+
 #endif

@@ -1,4 +1,5 @@
 #include "png.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
@@ -102,4 +103,58 @@ fail:
     free(raw);
     free(out);
     return NULL;
+}
+
+static void put_be32(uint8_t *p, uint32_t v) {
+    p[0] = (uint8_t)(v >> 24);
+    p[1] = (uint8_t)(v >> 16);
+    p[2] = (uint8_t)(v >> 8);
+    p[3] = (uint8_t)v;
+}
+
+static void write_chunk(FILE *f, const char *type, const uint8_t *data, uint32_t len) {
+    uint8_t head[8];
+    uint32_t crc;
+    put_be32(head, len);
+    memcpy(head + 4, type, 4);
+    fwrite(head, 1, 8, f);
+    if (len) fwrite(data, 1, len, f);
+    crc = (uint32_t)crc32(0, head + 4, 4);
+    crc = (uint32_t)crc32(crc, data, len);
+    put_be32(head, crc);
+    fwrite(head, 1, 4, f);
+}
+
+int fern_png_write(const char *path, const uint8_t *rgba, int w, int h) {
+    static const uint8_t sig[8] = {137, 80, 78, 71, 13, 10, 26, 10};
+    uint8_t ihdr[13];
+    size_t raw_len = (size_t)(w * 4 + 1) * (size_t)h;
+    uint8_t *raw = malloc(raw_len);
+    uLongf zlen = compressBound((uLong)raw_len);
+    uint8_t *z = malloc(zlen);
+    FILE *f;
+    int y;
+    for (y = 0; y < h; y++) {
+        raw[(size_t)y * (w * 4 + 1)] = 0;
+        memcpy(raw + (size_t)y * (w * 4 + 1) + 1, rgba + (size_t)y * w * 4, (size_t)w * 4);
+    }
+    compress(z, &zlen, raw, (uLong)raw_len);
+    free(raw);
+    f = fopen(path, "wb");
+    if (!f) {
+        free(z);
+        return 0;
+    }
+    put_be32(ihdr, (uint32_t)w);
+    put_be32(ihdr + 4, (uint32_t)h);
+    ihdr[8] = 8;
+    ihdr[9] = 6;
+    ihdr[10] = ihdr[11] = ihdr[12] = 0;
+    fwrite(sig, 1, 8, f);
+    write_chunk(f, "IHDR", ihdr, 13);
+    write_chunk(f, "IDAT", z, (uint32_t)zlen);
+    write_chunk(f, "IEND", NULL, 0);
+    fclose(f);
+    free(z);
+    return 1;
 }
