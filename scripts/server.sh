@@ -1,27 +1,41 @@
 #!/bin/sh
 # Run a Project Poseidon server (Beta 1.7.3) on this Mac, in offline mode.
-# Usage: scripts/server.sh [start | stop | log]
+# Usage: scripts/server.sh [--uber] [start | stop | log]
 # The server, its world, and its log are in server/. Git does not track it.
 # The server listens on port 25565 on all interfaces, so the phones on the
 # same Wi-Fi reach it at the IP address of this Mac.
+# --uber runs Uberbukkit in server-uber/ on port 25566. It accepts the
+# protocols from a1.1.2_01 (2) to b1.7.3 (14), for the tests of the older
+# versions.
 set -e
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-DIR="$ROOT/server"
-TAG=1.1.12-260725-0600-6a7facd
-JAR="poseidon-craftbukkit-$TAG.jar"
+if [ "$1" = "--uber" ]; then
+    shift
+    DIR="$ROOT/server-uber"
+    REPO=Moresteck/Project-Poseidon-Uberbukkit
+    TAG=2.0.2-241217-1442-3a5552b
+    JAR="uberbukkit-2.0.2.jar"
+    PORT=25566
+else
+    DIR="$ROOT/server"
+    REPO=retromcorg/Project-Poseidon
+    TAG=1.1.12-260725-0600-6a7facd
+    JAR="poseidon-craftbukkit-$TAG.jar"
+    PORT=25565
+fi
 mkdir -p "$DIR"
 cd "$DIR"
 
 case "${1:-start}" in
 start)
     if [ ! -f "$JAR" ]; then
-        gh release download "$TAG" -R retromcorg/Project-Poseidon -p "$JAR"
+        gh release download "$TAG" -R "$REPO" -p "$JAR"
     fi
     if [ ! -f server.properties ]; then
         cat >server.properties <<PROPS
 online-mode=false
-server-port=25565
+server-port=$PORT
 level-name=world
 level-seed=fernstone
 max-players=8
@@ -38,6 +52,10 @@ PROPS
     if [ -f bukkit.yml ]; then
         sed -i '' 's/spawn-radius: [0-9]*/spawn-radius: 0/' bukkit.yml
     fi
+    # Uberbukkit accepts only the protocols in this list.
+    if [ -f uberbukkit.yml ]; then
+        sed -i '' "s/^        value: '[0-9,]*'/        value: '14,13,11,10,9,8,7,6,5,4,3,2'/" uberbukkit.yml
+    fi
     # The console reads commands from a pipe, so that "stop" can reach it.
     rm -f console
     mkfifo console
@@ -51,7 +69,7 @@ PROPS
         [ $i -lt 120 ] || { tail -20 server.out >&2; exit 1; }
         sleep 1
     done
-    echo "server: ready on port 25565 (pid $(cat server.pid))"
+    echo "server: ready on port $PORT (pid $(cat server.pid))"
     ;;
 stop)
     [ -f server.pid ] || exit 0
