@@ -27,6 +27,14 @@ void fern_d2_set_font(FernDraw2D *d, const uint8_t *rgba, int w, int h);
 float fern_d2_text(FernDraw2D *d, const char *utf8, float x, float y, float scale, uint32_t rgba, int shadow);
 float fern_d2_text_width(FernDraw2D *d, const char *utf8, float scale);
 
+// Turn and scale each later rectangle around a point (in pixels), for
+// example for a splash text. fern_d2_reset_transform stops it.
+void fern_d2_transform(FernDraw2D *d, float ox, float oy, float angle_deg, float scale);
+void fern_d2_reset_transform(FernDraw2D *d);
+// The 5 x 7 rows of a built-in glyph (bit 4 is the left column). Give 0 for
+// a character that the built-in font does not have.
+int fern_d2_glyph(char c, uint8_t rows[7]);
+
 #define FERN_RGBA(r, g, b, a) ((uint32_t)(r) << 24 | (uint32_t)(g) << 16 | (uint32_t)(b) << 8 | (uint32_t)(a))
 
 #endif

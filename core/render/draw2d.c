@@ -1,4 +1,5 @@
 #include "draw2d.h"
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include "gfx.h"
@@ -21,6 +22,8 @@ struct FernDraw2D {
     uint8_t widths[256];
     float font_cell;      // The size of one glyph cell, in pixels of the font image.
     int builtin;
+    int turned;
+    float ox, oy, cos_a, sin_a, scale;
 };
 
 static const char *vs =
@@ -144,6 +147,13 @@ void fern_d2_image(FernDraw2D *d, GLuint tex, float x, float y, float w, float h
     v[1].x = x + w; v[1].y = y;     v[1].u = u1; v[1].v = v0;
     v[2].x = x + w; v[2].y = y + h; v[2].u = u1; v[2].v = v1;
     v[3].x = x;     v[3].y = y + h; v[3].u = u0; v[3].v = v1;
+    if (d->turned) {
+        for (i = 0; i < 4; i++) {
+            float px = (v[i].x - d->ox) * d->scale, py = (v[i].y - d->oy) * d->scale;
+            v[i].x = d->ox + px * d->cos_a - py * d->sin_a;
+            v[i].y = d->oy + px * d->sin_a + py * d->cos_a;
+        }
+    }
     for (i = 0; i < 4; i++) {
         v[i].c[0] = (uint8_t)(rgba >> 24);
         v[i].c[1] = (uint8_t)(rgba >> 16);
@@ -151,6 +161,31 @@ void fern_d2_image(FernDraw2D *d, GLuint tex, float x, float y, float w, float h
         v[i].c[3] = (uint8_t)rgba;
     }
     d->quads++;
+}
+
+void fern_d2_transform(FernDraw2D *d, float ox, float oy, float angle_deg, float scale) {
+    float a = angle_deg * 3.14159265f / 180.0f;
+    d->turned = 1;
+    d->ox = ox;
+    d->oy = oy;
+    d->cos_a = cosf(a);
+    d->sin_a = sinf(a);
+    d->scale = scale;
+}
+
+void fern_d2_reset_transform(FernDraw2D *d) {
+    d->turned = 0;
+}
+
+int fern_d2_glyph(char c, uint8_t rows[7]) {
+    unsigned i;
+    if (c >= 'a' && c <= 'z') c = (char)(c - 32);
+    for (i = 0; i < sizeof(glyphs) / sizeof(glyphs[0]); i++)
+        if (glyphs[i].c == c) {
+            memcpy(rows, glyphs[i].row, 7);
+            return 1;
+        }
+    return 0;
 }
 
 void fern_d2_rect(FernDraw2D *d, float x, float y, float w, float h, uint32_t rgba) {
