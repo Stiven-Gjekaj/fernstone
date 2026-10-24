@@ -1,0 +1,3 @@
+{ "id": "a1.1.2_01", "era": "alpha",
+  "min":         { "ramMB": 256, "gl": "es2" },
+  "recommended": { "ramMB": 512, "gl": "es2", "benchScore": 10 } }
