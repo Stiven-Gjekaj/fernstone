@@ -291,3 +291,24 @@ void fern_model_sheep_fur(FernVertexList *l, float yaw, float walk, uint8_t r, u
         l->v[i].b = (uint8_t)(l->v[i].b * b / 255);
     }
 }
+
+void fern_model_sprite(FernVertexList *l, int icon, float camera_yaw, uint8_t light) {
+    FernVertex *q = add(l, 4);
+    float a = camera_yaw * (float)M_PI / 180.0f, c = cosf(a), s = sinf(a);
+    float u0 = (icon & 15) / 16.0f, v0 = (icon >> 4) / 16.0f, d = 1.0f / 16;
+    // Half a block wide, across the line of sight. The models draw with no
+    // face culling, so one quad shows from both sides.
+    float hx = c * 4, hz = s * 4;
+    int i;
+    for (i = 0; i < 4; i++) {
+        int right = i == 1 || i == 2, top = i >= 2;
+        q[i].x = (int16_t)lroundf(right ? hx : -hx);
+        q[i].y = (int16_t)(top ? 9 : 1);
+        q[i].z = (int16_t)lroundf(right ? hz : -hz);
+        q[i].pad = 0;
+        q[i].u = (uint16_t)((u0 + (right ? d : 0)) * 65535);
+        q[i].v = (uint16_t)((v0 + (top ? 0 : d)) * 65535);
+        q[i].r = q[i].g = q[i].b = 255;
+        q[i].light = light;
+    }
+}

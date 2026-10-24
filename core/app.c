@@ -1069,6 +1069,10 @@ static void draw_world(FernApp *app) {
             }
             fern_model_mob(&app->models, e->yaw, w, h, r, g, b, light);
             fern_terrain_draw_quads(app->terrain, &vp, app->tex_char, ox, oy, oz, app->models.v, app->models.count, &look);
+        } else if (e->kind == ENT_ITEM && e->item >= 256 && item_icon(e->item) >= 0 && app->tex_items) {
+            fern_model_sprite(&app->models, item_icon(e->item), c->body.yaw, light);
+            fern_terrain_draw_quads(app->terrain, &vp, app->tex_items, ox, oy + 0.05f, oz, app->models.v,
+                                    app->models.count, &look);
         } else if (e->kind == ENT_ITEM && e->item > 0 && e->item < 256) {
             int tile = fern_block_texture(FERN_STATE(fern_block_from_wire(14, e->item), 0), 3);
             fern_model_item(&app->models, tile, (float)fmod(app->now * 60.0, 360.0), light);
@@ -1368,16 +1372,17 @@ void fern_app_command(FernApp *app, const char *line) {
         fern_client_hold(&app->client, (int)x);
     } else if (sscanf(line, "shot %1023s", app->shot_path) == 1) {
         // The next frame saves itself to the file.
-    } else if (sscanf(line, "fakemob %f", &x) == 1) {
-        // Put a mob that only this client sees 3 blocks in front of the
-        // camera, for a test of the models.
+    } else if (sscanf(line, "fakemob %f", &x) == 1 || sscanf(line, "fakeitem %f", &y) == 1) {
+        // Put a mob or a dropped item that only this client sees 3 blocks
+        // in front of the camera, for a test of the models.
         FernClient *c = &app->client;
         FernEntity *e;
         float yaw = app->input.yaw * (float)M_PI / 180.0f;
-        int i;
+        int i, item = !strncmp(line, "fakeitem", 8);
         for (i = 0; i < FERN_ENTITY_MAX; i++)
             if (c->ents.e[i].used && c->ents.e[i].id >= 0x7FFF0000) c->ents.e[i].used = 0;
-        e = fern_entity_add(&c->ents, 0x7FFF0000 + (int)x, ENT_MOB);
+        e = fern_entity_add(&c->ents, 0x7FFF0000 + (int)(item ? y : x), item ? ENT_ITEM : ENT_MOB);
+        if (e && item) e->item = (int16_t)y;
         if (e) {
             double fx = c->body.x - sinf(yaw) * 3, fz = c->body.z + cosf(yaw) * 3;
             int gy = (int)floor(c->body.y) + 3;
@@ -1385,7 +1390,7 @@ void fern_app_command(FernApp *app, const char *line) {
             while (gy > 0 && !(fern_block_info(FERN_BLOCK(fern_world_get(&c->world, (int)floor(fx), gy - 1,
                                                                          (int)floor(fz))))->flags & BF_SOLID))
                 gy--;
-            e->type = (uint8_t)x;
+            e->type = item ? 0 : (uint8_t)x;
             fern_entity_place(e, (int32_t)(fx * 32), gy * 32, (int32_t)(fz * 32));
             e->yaw = app->input.yaw + 150.0f;
         }

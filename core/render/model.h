@@ -17,6 +17,9 @@ int fern_model_mob_beta(FernVertexList *l, int type, float yaw, float pitch, flo
 // The wool of a sheep (mob/sheep_fur.png), with the color of the wool.
 void fern_model_sheep_fur(FernVertexList *l, float yaw, float walk, uint8_t r, uint8_t g, uint8_t b,
                           uint8_t light);
+// A flat icon (16 x 16 pixels of a 256 x 256 sheet) that turns to face the
+// camera, for a dropped item that is not a block.
+void fern_model_sprite(FernVertexList *l, int icon, float camera_yaw, uint8_t light);
 // A plain box for a mob: a body of a size in blocks, with one color.
 void fern_model_mob(FernVertexList *l, float yaw, float w, float h, uint8_t r, uint8_t g, uint8_t b,
                     uint8_t light);
