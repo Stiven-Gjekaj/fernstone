@@ -291,3 +291,39 @@ TEST(packet_reads_an_open_window_and_writes_a_close) {
     CHECK_EQ(w.data[1], 3);
     fern_writer_free(&w);
 }
+
+TEST(packet_writes_a_window_click_for_each_layout) {
+    FernWriter w;
+    FernItem it = {4, 10, 0};
+    fern_writer_init(&w);
+    fern_send_window_click(&w, fern_version_latest(), 0, 36, 0, 5, 0, &it);
+    // ID, window, slot, right, action, shift, then the item: 2 + 1 + 2.
+    CHECK_EQ(w.len, 1 + 1 + 2 + 1 + 2 + 1 + 5);
+    CHECK_EQ(w.data[3], 36);
+    CHECK_EQ(w.data[6], 5);
+    fern_writer_reset(&w);
+    fern_send_window_click(&w, fern_version_find("b1.4_01"), 0, 36, 1, 5, 0, NULL);
+    // No shift before layout 11, and -1 for an empty slot.
+    CHECK_EQ(w.len, 1 + 1 + 2 + 1 + 2 + 2);
+    CHECK_EQ(w.data[4], 1);
+    fern_writer_reset(&w);
+    fern_send_window_click(&w, fern_version_find("b1.1_01"), 0, 36, 0, 1, 0, &it);
+    // Layout 7 writes the damage as a byte.
+    CHECK_EQ(w.len, 1 + 1 + 2 + 1 + 2 + 4);
+    fern_writer_free(&w);
+}
+
+TEST(packet_reads_a_transaction) {
+    FernWriter w;
+    FernPacket p;
+    size_t used = 0;
+    fern_writer_init(&w);
+    fern_write_u8(&w, 0x6A);
+    fern_write_u8(&w, 0);
+    fern_write_i16(&w, 12);
+    fern_write_u8(&w, 0);
+    CHECK_EQ(decode(&w, &p, &used), FERN_DECODE_OK);
+    CHECK_EQ(p.u.transaction.action, 12);
+    CHECK_EQ(p.u.transaction.accepted, 0);
+    fern_writer_free(&w);
+}

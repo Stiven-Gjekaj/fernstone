@@ -360,8 +360,8 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
     case 0x64: // Open window. The title is modified UTF-8 in each version.
         p->u.open_window.window = fern_read_i8(r);
         p->u.open_window.type = fern_read_i8(r);
-        fern_read_str8(r, skip, sizeof(skip));
-        fern_read_i8(r);
+        fern_read_str8(r, p->u.open_window.title, sizeof(p->u.open_window.title));
+        p->u.open_window.slots = fern_read_u8(r);
         break;
     case 0x65: // Close window
         fern_read_i8(r);
@@ -386,10 +386,14 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
         break;
     }
     case 0x69: // Progress bar
-        fern_read_bytes(r, 5);
+        p->u.progress.window = fern_read_i8(r);
+        p->u.progress.bar = fern_read_i16(r);
+        p->u.progress.value = fern_read_i16(r);
         break;
     case 0x6A: // Transaction
-        fern_read_bytes(r, 4);
+        p->u.transaction.window = fern_read_i8(r);
+        p->u.transaction.action = fern_read_i16(r);
+        p->u.transaction.accepted = fern_read_u8(r);
         break;
     case 0x82: // Sign
         p->u.sign.x = fern_read_i32(r);
@@ -558,4 +562,30 @@ void fern_send_close_window(FernWriter *w, const FernVersion *v, int window) {
     (void)v;
     fern_write_u8(w, 0x65);
     fern_write_u8(w, (uint8_t)window);
+}
+
+void fern_send_window_click(FernWriter *w, const FernVersion *v, int window, int slot, int right, int action,
+                            int shift, const FernItem *item) {
+    fern_write_u8(w, 0x66);
+    fern_write_u8(w, (uint8_t)window);
+    fern_write_i16(w, (int16_t)slot);
+    fern_write_u8(w, (uint8_t)(right != 0));
+    fern_write_i16(w, (int16_t)action);
+    // The shift flag comes in layout 11.
+    if (v->wire >= 11) fern_write_u8(w, (uint8_t)(shift != 0));
+    if (v->wire == 7 && item && item->id >= 0) {
+        fern_write_i16(w, item->id);
+        fern_write_u8(w, (uint8_t)item->count);
+        fern_write_u8(w, (uint8_t)item->damage);
+        return;
+    }
+    write_item(w, item);
+}
+
+void fern_send_transaction(FernWriter *w, const FernVersion *v, int window, int action, int accepted) {
+    (void)v;
+    fern_write_u8(w, 0x6A);
+    fern_write_u8(w, (uint8_t)window);
+    fern_write_i16(w, (int16_t)action);
+    fern_write_u8(w, (uint8_t)(accepted != 0));
 }

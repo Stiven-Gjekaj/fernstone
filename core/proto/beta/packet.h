@@ -91,7 +91,9 @@ typedef struct {
         } explosion;
         struct { int8_t reason; } state;
         struct { int8_t window; int16_t slot; FernItem item; } set_slot;
-        struct { int8_t window; int8_t type; } open_window;
+        struct { int8_t window; int8_t type; uint8_t slots; char title[64]; } open_window;
+        struct { int8_t window; int16_t bar, value; } progress;
+        struct { int8_t window; int16_t action; uint8_t accepted; } transaction;
         struct { int8_t window; int16_t count; FernItem items[100]; } items;
         struct { int32_t x, y, z; char lines[4][64]; } sign;
     } u;
@@ -130,5 +132,10 @@ void fern_send_respawn(FernWriter *w, const FernVersion *v, int dimension);
 void fern_send_use_entity(FernWriter *w, const FernVersion *v, int self, int target, int left);
 void fern_send_disconnect(FernWriter *w, const FernVersion *v, const char *reason);
 void fern_send_close_window(FernWriter *w, const FernVersion *v, int window);
+// A click on a slot of a window. item is the item in the slot before the
+// click. action counts the clicks of the client.
+void fern_send_window_click(FernWriter *w, const FernVersion *v, int window, int slot, int right, int action,
+                            int shift, const FernItem *item);
+void fern_send_transaction(FernWriter *w, const FernVersion *v, int window, int action, int accepted);
 
 #endif
