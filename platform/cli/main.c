@@ -11,6 +11,7 @@
 //   place             place the held block on the block in view
 //   hold N            select hotbar slot N (0 to 8)
 //   status            print the position and the counts
+//   block X Y Z       print the block at a position
 //   quit              disconnect
 #include <fcntl.h>
 #include <math.h>
@@ -116,6 +117,10 @@ int main(int argc, char **argv) {
                 } else if (!strcmp(line, "place")) use_once = 1;
                 else if (sscanf(line, "hold %f", &a) == 1) fern_client_hold(&c, (int)a);
                 else if (!strcmp(line, "status")) status(&c);
+                else if (sscanf(line, "block %f %f %f", &a, &b, &d) == 3) {
+                    FernState st = fern_world_get(&c.world, (int)a, (int)b, (int)d);
+                    printf("block: %d %d %d = %d:%d\n", (int)a, (int)b, (int)d, FERN_BLOCK(st), FERN_META(st));
+                }
                 else if (!strcmp(line, "quit")) break;
             } else if (script && seconds == 0) {
                 break;
