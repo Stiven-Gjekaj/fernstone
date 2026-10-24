@@ -31,7 +31,8 @@ TEST(world_marks_the_section_next_to_an_edge) {
     b = fern_world_column_make(&w, 1, 0);
     a->dirty = b->dirty = 0;
     fern_world_set(&w, 15, 33, 4, FERN_STATE(B_DIRT, 0));
-    CHECK_EQ(a->dirty, (1u << 2));
+    // The shadow under the block also marks the section under it in a.
+    CHECK_EQ(a->dirty & (1u << 2), (1u << 2));
     CHECK_EQ(b->dirty, (1u << 2));
     fern_world_clear(&w);
 }
@@ -90,5 +91,52 @@ TEST(world_lights_a_block_that_a_change_opens) {
     fern_world_set(&w, 5, 69, 4, FERN_STATE(B_STONE, 0));
     fern_world_set(&w, 4, 69, 4, 0);
     CHECK_EQ(fern_world_sky(&w, 4, 69, 4), 15);
+    fern_world_clear(&w);
+}
+
+TEST(world_spreads_and_removes_block_light) {
+    FernWorld w;
+    int x, y, z;
+    fern_world_init(&w);
+    fern_world_column_make(&w, 0, 0);
+    // A closed room of stone from 60 to 70, so that no sky light enters.
+    for (y = 60; y <= 70; y++)
+        for (z = 0; z < 16; z++)
+            for (x = 0; x < 16; x++)
+                fern_world_set(&w, x, y, z, FERN_STATE(B_STONE, 0));
+    for (y = 61; y <= 69; y++)
+        for (z = 1; z < 15; z++)
+            for (x = 1; x < 15; x++)
+                fern_world_set(&w, x, y, z, 0);
+    CHECK_EQ(fern_world_light(&w, 8, 65, 8), 0);
+    fern_world_set(&w, 8, 65, 8, FERN_STATE(B_TORCH, 5));
+    CHECK_EQ(fern_world_light(&w, 8, 65, 8), 14);
+    CHECK_EQ(fern_world_light(&w, 10, 65, 8), 12);
+    CHECK_EQ(fern_world_light(&w, 10, 66, 9), 10);
+    fern_world_set(&w, 8, 65, 8, 0);
+    CHECK_EQ(fern_world_light(&w, 8, 65, 8), 0);
+    CHECK_EQ(fern_world_light(&w, 10, 66, 9), 0);
+    fern_world_clear(&w);
+}
+
+TEST(world_darkens_the_blocks_under_a_new_roof) {
+    FernWorld w;
+    int y;
+    fern_world_init(&w);
+    fern_world_column_make(&w, 0, 0);
+    // A shaft of stone walls from 50 to 70 around the block 4, 4.
+    for (y = 50; y <= 70; y++) {
+        fern_world_set(&w, 3, y, 4, FERN_STATE(B_STONE, 0));
+        fern_world_set(&w, 5, y, 4, FERN_STATE(B_STONE, 0));
+        fern_world_set(&w, 4, y, 3, FERN_STATE(B_STONE, 0));
+        fern_world_set(&w, 4, y, 5, FERN_STATE(B_STONE, 0));
+    }
+    fern_world_set(&w, 4, 49, 4, FERN_STATE(B_STONE, 0));
+    CHECK_EQ(fern_world_sky(&w, 4, 50, 4), 15);
+    fern_world_set(&w, 4, 71, 4, FERN_STATE(B_STONE, 0));
+    CHECK_EQ(fern_world_sky(&w, 4, 70, 4), 0);
+    CHECK_EQ(fern_world_sky(&w, 4, 50, 4), 0);
+    fern_world_set(&w, 4, 71, 4, 0);
+    CHECK_EQ(fern_world_sky(&w, 4, 50, 4), 15);
     fern_world_clear(&w);
 }

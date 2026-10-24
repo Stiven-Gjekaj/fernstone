@@ -95,6 +95,98 @@ void fern_world_mark(FernWorld *w, int x, int y, int z) {
     }
 }
 
+// The light model of Beta. The server sends no light change, so the client
+// spreads the light again around a changed block. Light falls by one for
+// each step. Full sky light goes down with no loss.
+static const int dirs[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+
+#define QUEUE 65536
+static int32_t queue_x[QUEUE], queue_z[QUEUE];
+static uint8_t queue_y[QUEUE], queue_v[QUEUE];
+
+// Get a pointer to the light byte of a block, or NULL if it has no storage.
+static uint8_t *light_at(FernWorld *w, int x, int y, int z) {
+    FernSection *s = section_at(w, x, y, z, NULL);
+    return s ? &s->light[INDEX(x, y, z)] : NULL;
+}
+
+static int get_light(FernWorld *w, int x, int y, int z, int sky) {
+    return sky ? fern_world_sky(w, x, y, z) : fern_world_light(w, x, y, z);
+}
+
+static void put_light(uint8_t *p, int sky, int v) {
+    *p = sky ? (uint8_t)((*p & 15) | v << 4) : (uint8_t)((*p & 0xF0) | v);
+}
+
+// The light that a block at a neighbor gets from a block with the light v.
+static int spread(int v, int sky, int dir) {
+    return sky && dir == 3 && v == 15 ? 15 : v - 1;
+}
+
+static void relight(FernWorld *w, int x, int y, int z, int sky) {
+    unsigned rh = 0, rt = 0, ah, at;
+    uint8_t *p = light_at(w, x, y, z);
+    FernState st = fern_world_get(w, x, y, z);
+    int k, emit = sky ? 0 : fern_block_info(FERN_BLOCK(st))->light;
+    int opaque = fern_block_info(FERN_BLOCK(st))->flags & BF_OPAQUE;
+    if (!p) return;
+    // Remove the light that came from this block. The removal queue uses the
+    // first half of the queue and the add queue uses the second half.
+    queue_x[rt] = x; queue_y[rt] = (uint8_t)y; queue_z[rt] = z;
+    queue_v[rt++] = (uint8_t)(sky ? *p >> 4 : *p & 15);
+    put_light(p, sky, 0);
+    ah = at = QUEUE / 2;
+    while (rh != rt) {
+        int qx = queue_x[rh], qy = queue_y[rh], qz = queue_z[rh], v = queue_v[rh++];
+        for (k = 0; k < 6; k++) {
+            int nx = qx + dirs[k][0], ny = qy + dirs[k][1], nz = qz + dirs[k][2];
+            uint8_t *n = light_at(w, nx, ny, nz);
+            int nv;
+            if (!n) continue;
+            nv = sky ? *n >> 4 : *n & 15;
+            if (nv == 0) continue;
+            if (nv < v || (sky && k == 3 && v == 15 && nv == 15)) {
+                put_light(n, sky, 0);
+                fern_world_mark(w, nx, ny, nz);
+                if (rt < QUEUE / 2) {
+                    queue_x[rt] = nx; queue_y[rt] = (uint8_t)ny; queue_z[rt] = nz;
+                    queue_v[rt++] = (uint8_t)nv;
+                }
+            } else if (at < QUEUE) {
+                // A brighter block at the edge lights the hole again.
+                queue_x[at] = nx; queue_y[at] = (uint8_t)ny; queue_z[at++] = nz;
+            }
+        }
+    }
+    // Give the block its own light and the light of its neighbors.
+    if (!opaque) {
+        for (k = 0; k < 6; k++) {
+            int v = get_light(w, x - dirs[k][0], y - dirs[k][1], z - dirs[k][2], sky);
+            v = spread(v, sky, k);
+            if (v > emit) emit = v;
+        }
+    }
+    put_light(p, sky, emit);
+    if (at < QUEUE) { queue_x[at] = x; queue_y[at] = (uint8_t)y; queue_z[at++] = z; }
+    // Spread the light out from each block in the add queue.
+    while (ah != at) {
+        int qx = queue_x[ah], qy = queue_y[ah], qz = queue_z[ah++];
+        int v = get_light(w, qx, qy, qz, sky);
+        for (k = 0; k < 6; k++) {
+            int nx = qx + dirs[k][0], ny = qy + dirs[k][1], nz = qz + dirs[k][2];
+            int nv = spread(v, sky, k);
+            uint8_t *n;
+            if (nv <= 0) continue;
+            n = light_at(w, nx, ny, nz);
+            if (!n || (sky ? *n >> 4 : *n & 15) >= nv) continue;
+            if (fern_block_info(FERN_BLOCK(fern_world_get(w, nx, ny, nz)))->flags & BF_OPAQUE) continue;
+            put_light(n, sky, nv);
+            fern_world_mark(w, nx, ny, nz);
+            if (at < QUEUE) { queue_x[at] = nx; queue_y[at] = (uint8_t)ny; queue_z[at++] = nz; }
+        }
+    }
+}
+
 void fern_world_set(FernWorld *w, int x, int y, int z, FernState st) {
     FernColumn *c = NULL;
     FernSection *s;
@@ -114,23 +206,8 @@ void fern_world_set(FernWorld *w, int x, int y, int z, FernState st) {
     if (s->state[i] == 0 && st != 0) s->solid++;
     if (s->state[i] != 0 && st == 0) s->solid--;
     s->state[i] = st;
-    // The server sends no light change. Give a block that the change opens
-    // the light of its neighbors, as the client of Beta does in short form:
-    // full sky light under open sky, else the brightest neighbor less one.
-    if (!(fern_block_info(FERN_BLOCK(st))->flags & BF_OPAQUE)) {
-        static const int d[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
-        int k, sky = 0, blk = fern_block_info(FERN_BLOCK(st))->light;
-        for (k = 0; k < 6; k++) {
-            int ns = fern_world_sky(w, x + d[k][0], y + d[k][1], z + d[k][2]);
-            int nb = fern_world_light(w, x + d[k][0], y + d[k][1], z + d[k][2]);
-            if (k == 2 && ns == 15) ns = 16;
-            if (ns - 1 > sky) sky = ns - 1;
-            if (nb - 1 > blk) blk = nb - 1;
-        }
-        s->light[i] = (uint8_t)(sky << 4 | blk);
-    } else {
-        s->light[i] = 0;
-    }
+    relight(w, x, y, z, 1);
+    relight(w, x, y, z, 0);
     fern_world_mark(w, x, y, z);
 }
 
