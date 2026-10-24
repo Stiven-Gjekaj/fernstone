@@ -816,6 +816,8 @@ static void draw_world(FernApp *app) {
         oy = (float)(e->py - ey);
         oz = (float)(e->pz - ez);
         if (ox * ox + oz * oz > look.fog_end * look.fog_end) continue;
+        // Do not draw a player that stands in the camera.
+        if (e->kind == ENT_PLAYER && ox * ox + oz * oz < 0.25f && oy > -2.0f && oy < 0.5f) continue;
         bx = (int)floor(e->px);
         by = (int)floor(e->py) + 1;
         bz = (int)floor(e->pz);
