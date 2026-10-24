@@ -5,8 +5,9 @@ sdks/
 # Build output
 build/
 
-# The local Poseidon server, its world, and its log
+# The local test servers, their worlds, and their logs
 server/
+server-uber/
 
 # Third party code that the scripts fetch and build
 deps/
