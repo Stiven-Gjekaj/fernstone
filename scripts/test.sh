@@ -11,7 +11,7 @@ OUT="$ROOT/build/tests"
 mkdir -p "$OUT"
 # The tests use the code of the core, but no renderer and no shell.
 # app.c joins the core to the renderer, so the tests leave it out.
-CORE=$(ls "$ROOT"/core/*.c "$ROOT"/core/world/*.c "$ROOT"/core/assets/*.c "$ROOT"/core/proto/beta/*.c "$ROOT"/core/render/mesh.c 2>/dev/null | grep -v "/core/app.c$" || true)
+CORE=$(ls "$ROOT"/core/*.c "$ROOT"/core/world/*.c "$ROOT"/core/assets/*.c "$ROOT"/core/proto/beta/*.c "$ROOT"/core/render/mesh.c "$ROOT"/core/render/fx.c 2>/dev/null | grep -v "/core/app.c$" || true)
 TESTS=$(ls "$ROOT"/tests/*.c)
 INC="-I$ROOT/core -I$ROOT/core/assets -I$ROOT/core/world -I$ROOT/core/proto/beta -I$ROOT/core/render -I$ROOT/tests"
 
