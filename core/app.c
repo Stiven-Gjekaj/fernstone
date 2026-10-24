@@ -16,7 +16,9 @@
 #include "terrain.h"
 #include "zip.h"
 
-typedef enum { SCREEN_MEASURE, SCREEN_MENU, SCREEN_VERSIONS, SCREEN_GAME, SCREEN_PAUSE, SCREEN_GONE } Screen;
+typedef enum {
+    SCREEN_MEASURE, SCREEN_MENU, SCREEN_JOIN, SCREEN_OPTIONS, SCREEN_VERSIONS, SCREEN_GAME, SCREEN_PAUSE, SCREEN_GONE
+} Screen;
 
 // The text fields of the menu.
 enum { FIELD_NONE, FIELD_SERVER, FIELD_NAME, FIELD_CHAT };
@@ -34,8 +36,10 @@ typedef struct {
     float x0, y0, x, y;   // The start and the current position.
     double t0;
     int moved;
-    int kind;             // 0 look, 1 stick, 2 button
+    int kind;             // TOUCH_LOOK, TOUCH_PAD, or TOUCH_BUTTON
 } Touch;
+
+enum { TOUCH_LOOK, TOUCH_PAD, TOUCH_BUTTON };
 
 #define MAX_TOUCHES 8
 
@@ -66,8 +70,9 @@ struct FernApp {
     FernVertexList models;
 
     Touch touch[MAX_TOUCHES];
-    float stick_x, stick_y;   // The virtual stick, -1 to 1.
-    int touch_attack, touch_use, touch_jump, touch_sneak;
+    int pad_forward, pad_strafe;  // The arrow of the D-pad under a finger.
+    int touch_attack, touch_jump, touch_sneak;
+    int splash;                   // The splash text of this launch.
 
     int import_request;
     char import_version[16];
@@ -261,6 +266,7 @@ FernApp *fern_app_new(const FernAppConfig *config) {
     for (i = 0; i < MAX_TOUCHES; i++) app->touch[i].id = -1;
     app->scale = 1;
     app->screen = SCREEN_MENU;
+    app->splash = (int)(fern_bench_now() * 7) % 8;
     return app;
 }
 
@@ -269,8 +275,10 @@ void fern_app_resize(FernApp *app, int width, int height, float scale) {
     app->width = width;
     app->height = height;
     app->scale = scale;
-    // The GUI scale: Beta uses 320 x 240 GUI pixels at least.
-    ui = floorf((float)height / 240.0f);
+    // The GUI scale: Beta uses 320 x 240 GUI pixels at least. A touch
+    // screen uses bigger GUI pixels (at least 320 x 200), as Pocket
+    // Edition does, so that a finger can hit each button.
+    ui = floorf((float)height / (app->config.touch ? 200.0f : 240.0f));
     if (ui < 1) ui = 1;
     if ((float)width / ui < 320) ui = floorf((float)width / 320.0f);
     if (ui < 1) ui = 1;
@@ -391,7 +399,14 @@ void fern_app_key(FernApp *app, FernKey key, int down) {
     }
     switch (app->screen) {
     case SCREEN_MENU:
+        if (key == FK_ENTER && app->have_jar) app->screen = SCREEN_JOIN;
+        break;
+    case SCREEN_JOIN:
         if (key == FK_ENTER && app->have_jar) connect_now(app);
+        if (key == FK_ESCAPE) app->screen = SCREEN_MENU;
+        break;
+    case SCREEN_OPTIONS:
+        if (key == FK_ESCAPE || key == FK_ENTER) app->screen = SCREEN_MENU;
         break;
     case SCREEN_GAME:
         if (key == FK_CHAT) open_chat(app, "");
@@ -509,7 +524,7 @@ static int button(FernApp *app, const char *label, float x, float y, float w, in
 static void field(FernApp *app, const char *label, const char *value, float x, float y, float w, int id) {
     char shown[160];
     int focused = app->focus == id;
-    text(app, label, x, y - 11, FERN_RGBA(160, 160, 160, 255));
+    text_center(app, label, x + w / 2, y - 11, FERN_RGBA(200, 200, 200, 255));
     rect(app, x - 1, y - 1, w + 2, 22, focused ? FERN_RGBA(255, 255, 255, 255) : FERN_RGBA(160, 160, 160, 255));
     rect(app, x, y, w, 20, FERN_RGBA(0, 0, 0, 255));
     snprintf(shown, sizeof(shown), "%s%s", value, focused && ((int)(app->now * 2) & 1) ? "_" : "");
@@ -517,58 +532,168 @@ static void field(FernApp *app, const char *label, const char *value, float x, f
     if (hit(app, x, y, w, 20)) app->focus = id;
 }
 
+// The background of the menus, in the style of the title art: a sky, far
+// hills, and a strip of grass and dirt blocks that moves slowly.
 static void background(FernApp *app) {
-    float u = app->ui, x, y;
-    // The dirt background of Beta, dark, when the jar is there.
-    if (app->tex_terrain) {
-        for (y = 0; y < gh(app); y += 32)
-            for (x = 0; x < gw(app); x += 32)
-                fern_d2_image(app->d2, app->tex_terrain, x * u, y * u, 32 * u, 32 * u, 2.0f / 16, 0, 3.0f / 16, 1.0f / 16,
-                              FERN_RGBA(64, 64, 64, 255));
-    } else {
-        rect(app, 0, 0, gw(app), gh(app), FERN_RGBA(30, 26, 22, 255));
+    float u = app->ui, w = gw(app), h = gh(app), x, y, ground = h * 0.62f;
+    float drift = (float)fmod(app->now * 4.0, 32.0);
+    int i;
+    for (i = 0; i < 16; i++) {
+        float t = i / 15.0f;
+        rect(app, 0, ground * i / 16.0f, w, ground / 16.0f + 1,
+             FERN_RGBA((int)(70 + 70 * t), (int)(110 + 70 * t), (int)(190 + 40 * t), 255));
+    }
+    if (!app->tex_terrain) {
+        rect(app, 0, ground, w, h - ground, FERN_RGBA(60, 45, 30, 255));
+        return;
+    }
+    // The far hills: a row of leaf blocks, dark, with a slow drift.
+    for (x = -drift / 2 - 32; x < w; x += 16) {
+        float hy = ground - 16 - 10 * sinf((x + (float)app->now * 2) * 0.03f);
+        fern_d2_image(app->d2, app->tex_terrain, x * u, hy * u, 16 * u, (ground - hy + 1) * u, 4.0f / 16, 3.0f / 16,
+                      5.0f / 16, 4.0f / 16, FERN_RGBA(60, 110, 50, 255));
+    }
+    // The grass and the dirt in front.
+    for (x = -drift - 32; x < w; x += 32) {
+        fern_d2_image(app->d2, app->tex_terrain, x * u, ground * u, 32 * u, 32 * u, 3.0f / 16, 0, 4.0f / 16, 1.0f / 16,
+                      FERN_RGBA(210, 210, 210, 255));
+        for (y = ground + 32; y < h; y += 32)
+            fern_d2_image(app->d2, app->tex_terrain, x * u, y * u, 32 * u, 32 * u, 2.0f / 16, 0, 3.0f / 16, 1.0f / 16,
+                          FERN_RGBA(150, 150, 150, 255));
+    }
+    // A dark veil, so that the text and the buttons stand out.
+    rect(app, 0, 0, w, h, FERN_RGBA(0, 0, 0, 70));
+}
+
+// A dark panel for a screen of the menu.
+static void panel(FernApp *app, float x, float y, float w, float h) {
+    rect(app, x, y, w, h, FERN_RGBA(0, 0, 0, 130));
+    rect(app, x, y, w, 1, FERN_RGBA(255, 255, 255, 40));
+}
+
+// The logo: each pixel of the letters is a cobblestone or a mossy
+// cobblestone tile of the jar, with a dark side below it, in the style of
+// the title of Minecraft.
+static void logo(FernApp *app, const char *word, float cy, float max_w) {
+    int n = (int)strlen(word), i, r, c;
+    float px = floorf(max_w / (n * 6.0f));
+    float w, x0, u = app->ui;
+    if (px > 7) px = 7;
+    if (px < 2) px = 2;
+    w = n * 6 * px - px;
+    x0 = floorf(gw(app) / 2 - w / 2);
+    for (i = 0; i < n; i++) {
+        uint8_t rows[7];
+        if (!fern_d2_glyph(word[i], rows)) continue;
+        for (r = 0; r < 7; r++)
+            for (c = 0; c < 5; c++) {
+                float x = x0 + (i * 6 + c) * px, y = cy + r * px;
+                int tile = ((i * 7 + r * 3 + c * 5) % 5 == 0) ? 36 : 16;
+                if (!(rows[r] & (16 >> c))) continue;
+                // The side of the block: a dark copy below and to the right.
+                rect(app, x + px * 0.35f, y + px * 0.6f, px, px, FERN_RGBA(20, 20, 24, 255));
+                if (app->tex_terrain)
+                    fern_d2_image(app->d2, app->tex_terrain, x * u, y * u, px * u, px * u, (tile & 15) / 16.0f,
+                                  (tile >> 4) / 16.0f, ((tile & 15) + 1) / 16.0f, ((tile >> 4) + 1) / 16.0f, 0xFFFFFFFF);
+                else
+                    rect(app, x, y, px, px, FERN_RGBA(140, 140, 140, 255));
+            }
+    }
+    // The yellow splash text, turned and pulsing, at the right of the logo.
+    {
+        static const char *splashes[8] = {"Now on iOS 6!", "No JIT needed!", "Beta 1.7.3!", "Made of C!",
+                                          "Mossy!", "Runs on a 4S!", "ANGLE on Metal!", "Three devices!"};
+        const char *sp = splashes[app->splash & 7];
+        float pulse = 1.0f + 0.08f * fabsf(sinf((float)app->now * 6.0f));
+        float sx = (x0 + w - 4) * u, sy = (cy + 7 * px + 2) * u;
+        fern_d2_flush(app->d2);
+        fern_d2_transform(app->d2, sx, sy, -18.0f, pulse);
+        fern_d2_text(app->d2, sp, sx - text_w(app, sp) * u / 2, sy - 4 * u, u, FERN_RGBA(255, 255, 0, 255), 1);
+        fern_d2_flush(app->d2);
+        fern_d2_reset_transform(app->d2);
     }
 }
 
+static void footer(FernApp *app) {
+    text(app, "Fernstone " FERN_APP_VERSION, 2, gh(app) - 10, FERN_RGBA(220, 220, 220, 255));
+    text(app, "Not made by Mojang", gw(app) - 2 - text_w(app, "Not made by Mojang"), gh(app) - 10,
+         FERN_RGBA(220, 220, 220, 255));
+}
+
 static void draw_menu(FernApp *app) {
-    float cx = gw(app) / 2, y = gh(app) / 2 - 92;
-    char line[200];
+    float cx = gw(app) / 2, h = gh(app), y;
+    char line[64];
     background(app);
-    // The title: a stone block in the style of the icon, and the name.
-    fern_d2_text(app->d2, "Fernstone", (cx - text_w(app, "Fernstone")) * app->ui, y * app->ui, app->ui * 2,
-                 FERN_RGBA(255, 255, 255, 255), 1);
-    text_center(app, "Alpha and Beta multiplayer", cx + text_w(app, "Fernstone") / 2 + 12, y + 18,
-                FERN_RGBA(255, 255, 85, 255));
-    y += 46;
-    field(app, "Server address", app->opt.server, cx - 100, y, 200, FIELD_SERVER);
-    y += 36;
-    field(app, "Name", app->opt.name, cx - 100, y, 200, FIELD_NAME);
-    y += 28;
-    snprintf(line, sizeof(line), "Version: %s", app->opt.version);
-    if (button(app, line, cx - 100, y, 200, 1)) {
-        app->screen = SCREEN_VERSIONS;
+    logo(app, "FERNSTONE", floorf(h * 0.1f), gw(app) * 0.8f);
+    y = floorf(h * 0.48f);
+    if (button(app, "Join Server", cx - 100, y, 200, app->have_jar)) {
+        app->screen = SCREEN_JOIN;
         app->focus = FIELD_NONE;
     }
     y += 24;
+    snprintf(line, sizeof(line), "Version: %s", app->opt.version);
+    if (button(app, line, cx - 100, y, 98, 1)) app->screen = SCREEN_VERSIONS;
+    if (button(app, "Options", cx + 2, y, 98, 1)) app->screen = SCREEN_OPTIONS;
+    y += 26;
+    if (!app->have_jar) {
+        text_center(app, app->jar_error, cx, y, FERN_RGBA(255, 120, 120, 255));
+        if (strcmp(app->config.platform, "ios6") == 0) {
+            snprintf(line, sizeof(line), "Copy it to jars/%s.jar", app->opt.version);
+            text_center(app, line, cx, y + 11, FERN_RGBA(220, 220, 220, 255));
+            text_center(app, app->data_dir, cx, y + 21, FERN_RGBA(220, 220, 220, 255));
+        } else if (button(app, "Import jar", cx - 100, y + 12, 200, 1)) {
+            app->import_request = 1;
+            snprintf(app->import_version, sizeof(app->import_version), "%s", app->opt.version);
+        }
+    }
+    footer(app);
+}
+
+static void draw_join(FernApp *app) {
+    float cx = gw(app) / 2, h = gh(app), y = floorf(h * 0.12f);
+    background(app);
+    panel(app, cx - 116, y - 6, 232, 132);
+    text_center(app, "Join Server", cx, y, 0xFFFFFFFF);
+    y += 26;
+    field(app, "Server address", app->opt.server, cx - 100, y, 200, FIELD_SERVER);
+    y += 36;
+    field(app, "Name", app->opt.name, cx - 100, y, 200, FIELD_NAME);
+    y += 30;
+    if (button(app, "Back", cx - 100, y, 98, 1)) {
+        app->focus = FIELD_NONE;
+        options_save(app);
+        app->screen = SCREEN_MENU;
+    }
+    if (button(app, "Join", cx + 2, y, 98, app->have_jar && app->opt.server[0] && app->opt.name[0])) connect_now(app);
+    footer(app);
+}
+
+static void draw_options(FernApp *app) {
+    float cx = gw(app) / 2, h = gh(app), y = floorf(h * 0.12f);
+    char line[64];
+    background(app);
+    panel(app, cx - 116, y - 6, 232, 128);
+    text_center(app, "Options", cx, y, 0xFFFFFFFF);
+    y += 18;
     snprintf(line, sizeof(line), "Render distance: %d", app->opt.render);
     if (button(app, line, cx - 100, y, 200, 1)) {
         app->opt.render = app->opt.render >= 12 ? 2 : app->opt.render + 1;
         options_save(app);
     }
     y += 24;
-    if (button(app, "Connect", cx - 100, y, 200, app->have_jar && app->opt.server[0] && app->opt.name[0])) connect_now(app);
-    y += 28;
-    if (!app->have_jar) {
-        text_center(app, app->jar_error, cx, y, FERN_RGBA(255, 85, 85, 255));
-        if (strcmp(app->config.platform, "ios6") == 0) {
-            snprintf(line, sizeof(line), "Copy it to %s/jars/%s.jar", app->data_dir, app->opt.version);
-            text_center(app, line, cx, y + 11, FERN_RGBA(200, 200, 200, 255));
-        } else if (button(app, "Import jar", cx - 100, y + 12, 200, 1)) {
-            app->import_request = 1;
-            snprintf(app->import_version, sizeof(app->import_version), "%s", app->opt.version);
-        }
+    snprintf(line, sizeof(line), "Sensitivity: %d%%", (int)(app->opt.sensitivity * 100 + 0.5f));
+    if (button(app, line, cx - 100, y, 200, 1)) {
+        app->opt.sensitivity = app->opt.sensitivity >= 2.0f ? 0.5f : app->opt.sensitivity + 0.25f;
+        options_save(app);
     }
-    text(app, "Fernstone " FERN_APP_VERSION, 2, gh(app) - 10, FERN_RGBA(120, 120, 120, 255));
+    y += 24;
+    if (strcmp(app->config.platform, "ios6") != 0 && button(app, "Import jar", cx - 100, y, 200, 1)) {
+        app->import_request = 1;
+        snprintf(app->import_version, sizeof(app->import_version), "%s", app->opt.version);
+    }
+    y += 30;
+    if (button(app, "Done", cx - 100, y, 200, 1)) app->screen = SCREEN_MENU;
+    footer(app);
 }
 
 static void draw_measure(FernApp *app) {
@@ -692,8 +817,8 @@ static void draw_hud(FernApp *app) {
     float u = app->ui, cx = gw(app) / 2, hx = cx - 91, hy = gh(app) - 22;
     int i;
     char line[256];
-    // The crosshair.
-    if (!app->config.touch || app->touch_attack) {
+    // The crosshair. On a touch screen the finger aims, as in Pocket Edition.
+    if (!app->config.touch) {
         rect(app, cx - 4.5f, gh(app) / 2 - 0.5f, 9, 1, FERN_RGBA(255, 255, 255, 200));
         rect(app, cx - 0.5f, gh(app) / 2 - 4.5f, 1, 9, FERN_RGBA(255, 255, 255, 200));
     }
@@ -764,27 +889,72 @@ static void draw_hud(FernApp *app) {
     }
 }
 
-static void draw_touch_controls(FernApp *app) {
-    float h = gh(app), w = gw(app);
-    int i;
-    // The stick: a ring where the left thumb went down.
-    for (i = 0; i < MAX_TOUCHES; i++) {
-        Touch *t = &app->touch[i];
-        if (t->id >= 0 && t->kind == 1) {
-            float bx = t->x0 / app->ui, by = t->y0 / app->ui;
-            rect(app, bx - 24, by - 24, 48, 48, FERN_RGBA(255, 255, 255, 40));
-            rect(app, bx - 8 + app->stick_x * 20, by - 8 + app->stick_y * 20, 16, 16, FERN_RGBA(255, 255, 255, 120));
+// The touch controls of Pocket Edition: a D-pad at the bottom left with
+// the sneak toggle in its middle, a jump button at the bottom right, and the
+// pause and chat buttons at the top right. All sizes are in GUI pixels.
+#define PAD_CELL 26.0f
+#define PAD_X 8.0f
+#define JUMP_SIZE 34.0f
+
+static float pad_top(FernApp *app) {
+    // On a narrow screen (the 4S), the D-pad goes above the hotbar.
+    if (PAD_X + PAD_CELL * 3 > gw(app) / 2 - 91) return gh(app) - 26 - PAD_CELL * 3;
+    return gh(app) - 8 - PAD_CELL * 3;
+}
+
+// The cell of the D-pad under a point: 0 to 8 (row by row), or -1.
+static int pad_cell(FernApp *app, float gx, float gy) {
+    int col = (int)floorf((gx - PAD_X) / PAD_CELL), row = (int)floorf((gy - pad_top(app)) / PAD_CELL);
+    if (gx < PAD_X || gy < pad_top(app) || col > 2 || row > 2) return -1;
+    return row * 3 + col;
+}
+
+// A white arrow in a square: dir 0 up, 1 right, 2 down, 3 left.
+static void arrow(FernApp *app, float x, float y, float size, int dir) {
+    float c = size / 2, i;
+    for (i = 0; i < size * 0.3f; i += 1) {
+        float len = (size * 0.3f - i) * 2;
+        switch (dir) {
+        // Row i is the wide base at i = 0, and the tip at the last i.
+        case 0: rect(app, x + c - len / 2, y + size * 0.65f - i, len, 1, 0xFFFFFFE0); break;
+        case 2: rect(app, x + c - len / 2, y + size * 0.35f + i, len, 1, 0xFFFFFFE0); break;
+        case 1: rect(app, x + size * 0.35f + i, y + c - len / 2, 1, len, 0xFFFFFFE0); break;
+        default: rect(app, x + size * 0.65f - i, y + c - len / 2, 1, len, 0xFFFFFFE0); break;
         }
     }
-    // The buttons: jump, sneak, chat, and the pause button.
-    rect(app, w - 46, h - 70, 40, 40, FERN_RGBA(255, 255, 255, app->touch_jump ? 110 : 50));
-    text_center(app, "Jump", w - 26, h - 54, 0xFFFFFFFF);
-    rect(app, w - 90, h - 50, 40, 26, FERN_RGBA(255, 255, 255, app->touch_sneak ? 110 : 50));
-    text_center(app, "Sneak", w - 70, h - 41, 0xFFFFFFFF);
-    rect(app, w - 46, 4, 42, 16, FERN_RGBA(255, 255, 255, 50));
-    text_center(app, "Chat", w - 25, 8, 0xFFFFFFFF);
-    rect(app, 4, 4, 42, 16, FERN_RGBA(255, 255, 255, 50));
-    text_center(app, "Pause", 25, 8, 0xFFFFFFFF);
+}
+
+static void pad_button(FernApp *app, float x, float y, float size, int lit) {
+    rect(app, x + 1, y + 1, size - 2, size - 2, FERN_RGBA(30, 30, 30, lit ? 170 : 90));
+    rect(app, x + 1, y + 1, size - 2, 1, FERN_RGBA(255, 255, 255, 60));
+    rect(app, x + 1, y + size - 2, size - 2, 1, FERN_RGBA(0, 0, 0, 120));
+}
+
+static void draw_touch_controls(FernApp *app) {
+    float h = gh(app), w = gw(app), top = pad_top(app), x0 = PAD_X;
+    // The D-pad.
+    pad_button(app, x0 + PAD_CELL, top, PAD_CELL, app->pad_forward > 0);
+    arrow(app, x0 + PAD_CELL, top, PAD_CELL, 0);
+    pad_button(app, x0, top + PAD_CELL, PAD_CELL, app->pad_strafe > 0);
+    arrow(app, x0, top + PAD_CELL, PAD_CELL, 3);
+    pad_button(app, x0 + PAD_CELL * 2, top + PAD_CELL, PAD_CELL, app->pad_strafe < 0);
+    arrow(app, x0 + PAD_CELL * 2, top + PAD_CELL, PAD_CELL, 1);
+    pad_button(app, x0 + PAD_CELL, top + PAD_CELL * 2, PAD_CELL, app->pad_forward < 0);
+    arrow(app, x0 + PAD_CELL, top + PAD_CELL * 2, PAD_CELL, 2);
+    // The sneak toggle: a small square in the middle.
+    pad_button(app, x0 + PAD_CELL, top + PAD_CELL, PAD_CELL, app->touch_sneak);
+    rect(app, x0 + PAD_CELL + 9, top + PAD_CELL + 9, 8, 8, app->touch_sneak ? 0xFFFFFFE0 : 0xFFFFFF70);
+    // Jump.
+    pad_button(app, w - 8 - JUMP_SIZE, h - 8 - JUMP_SIZE, JUMP_SIZE, app->touch_jump);
+    arrow(app, w - 8 - JUMP_SIZE, h - 8 - JUMP_SIZE - 3, JUMP_SIZE, 0);
+    arrow(app, w - 8 - JUMP_SIZE, h - 8 - JUMP_SIZE + 5, JUMP_SIZE, 0);
+    // Pause: two bars. Chat: a speech box.
+    pad_button(app, w - 24, 4, 20, 0);
+    rect(app, w - 18, 9, 3, 10, 0xFFFFFFE0);
+    rect(app, w - 13, 9, 3, 10, 0xFFFFFFE0);
+    pad_button(app, w - 48, 4, 20, 0);
+    rect(app, w - 44, 8, 12, 8, 0xFFFFFFE0);
+    rect(app, w - 42, 16, 3, 3, 0xFFFFFFE0);
 }
 
 static void draw_world(FernApp *app) {
@@ -866,7 +1036,7 @@ static void draw_world(FernApp *app) {
 
     // The outline of the block in view: thin dark bars on the edges of the
     // face that the ray hits. The bars get lighter while the block breaks.
-    if (c->target.hit) {
+    if (c->target.hit && (!app->config.touch || app->input.aim)) {
         float x0 = (float)(c->target.x - ex), y0 = (float)(c->target.y - ey), z0 = (float)(c->target.z - ez);
         static const int corner[6][4][3] = {
             {{0, 0, 0}, {16, 0, 0}, {16, 0, 16}, {0, 0, 16}}, {{0, 16, 16}, {16, 16, 16}, {16, 16, 0}, {0, 16, 0}},
@@ -901,6 +1071,28 @@ static void draw_world(FernApp *app) {
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(-1, -1);
         fern_terrain_draw_quads(app->terrain, &vp, app->tex_terrain, x0, y0, z0, v, 16, &look);
+        // The cracks: tiles 240 to 249 of the atlas, on each face, while
+        // the block breaks.
+        if (c->digging && c->dig_x == c->target.x && c->dig_y == c->target.y && c->dig_z == c->target.z) {
+            FernVertex q[24];
+            int stage = (int)(c->dig_done * 10), f2, k;
+            int tile = 240 + (stage > 9 ? 9 : stage);
+            float tu = (tile & 15) / 16.0f, tv = (tile >> 4) / 16.0f;
+            memset(q, 0, sizeof(q));
+            for (f2 = 0; f2 < 6; f2++)
+                for (k = 0; k < 4; k++) {
+                    FernVertex *p = &q[f2 * 4 + k];
+                    p->x = (int16_t)corner[f2][k][0];
+                    p->y = (int16_t)corner[f2][k][1];
+                    p->z = (int16_t)corner[f2][k][2];
+                    p->u = (uint16_t)((tu + ((k == 1 || k == 2) ? 1.0f / 16 : 0)) * 65535);
+                    p->v = (uint16_t)((tv + ((k < 2) ? 1.0f / 16 : 0)) * 65535);
+                    p->r = p->g = p->b = 255;
+                    p->light = 0xFF;
+                }
+            glPolygonOffset(-2, -2);
+            fern_terrain_draw_quads(app->terrain, &vp, app->tex_terrain, x0, y0, z0, q, 24, &look);
+        }
         glDisable(GL_POLYGON_OFFSET_FILL);
     }
 }
@@ -914,13 +1106,42 @@ static Touch *touch_of(FernApp *app, int id) {
     return NULL;
 }
 
+// The direction of a ray from the eye through a pixel of the screen, with
+// the field of view and the angles of the camera.
+static void ray_through(FernApp *app, float px, float py, float *dx, float *dy, float *dz) {
+    float yaw = app->input.yaw * (float)M_PI / 180.0f, pitch = app->input.pitch * (float)M_PI / 180.0f;
+    float t = tanf(70.0f * (float)M_PI / 360.0f), aspect = (float)app->width / (float)app->height;
+    float nx = (2 * px / app->width - 1) * t * aspect, ny = (1 - 2 * py / app->height) * t;
+    float fx = -sinf(yaw) * cosf(pitch), fy = -sinf(pitch), fz = cosf(yaw) * cosf(pitch);
+    float rx = -cosf(yaw), rz = -sinf(yaw);
+    // up = right x forward
+    float ux = -rz * fy, uy = rz * fx - rx * fz, uz = rx * fy;
+    *dx = fx + rx * nx + ux * ny;
+    *dy = fy + uy * ny;
+    *dz = fz + rz * nx + uz * ny;
+}
+
+static void set_pad(FernApp *app, int cell) {
+    app->pad_forward = cell == 1 ? 1 : cell == 7 ? -1 : 0;
+    app->pad_strafe = cell == 3 ? 1 : cell == 5 ? -1 : 0;
+}
+
+static void aim_at(FernApp *app, float x, float y) {
+    float dx, dy, dz;
+    ray_through(app, x, y, &dx, &dy, &dz);
+    app->input.aim = 1;
+    app->input.aim_x = dx;
+    app->input.aim_y = dy;
+    app->input.aim_z = dz;
+}
+
 void fern_app_pointer(FernApp *app, int id, int phase, float x, float y) {
     Touch *t;
     float gx = x / app->ui, gy = y / app->ui, w = gw(app), h = gh(app);
     // On the death screen, a touch goes to the buttons.
-    int game = app->screen == SCREEN_GAME && !app->chat_open && app->client.health > 0;
+    int game = app->screen == SCREEN_GAME && !app->chat_open && app->client.health > 0 && app->config.touch;
     if (phase == FERN_POINTER_DOWN) {
-        int i;
+        int i, cell;
         for (i = 0; i < MAX_TOUCHES && app->touch[i].id >= 0; i++) {}
         if (i == MAX_TOUCHES) return;
         t = &app->touch[i];
@@ -929,28 +1150,29 @@ void fern_app_pointer(FernApp *app, int id, int phase, float x, float y) {
         t->x0 = t->x = x;
         t->y0 = t->y = y;
         t->t0 = app->now;
-        t->kind = 0;
-        if (game && app->config.touch) {
-            if (gx > w - 46 && gy > h - 70 && gy < h - 30) {
-                t->kind = 2;
-                app->touch_jump = 1;
-            } else if (gx > w - 90 && gx < w - 50 && gy > h - 50 && gy < h - 24) {
-                t->kind = 2;
-                app->touch_sneak = !app->touch_sneak;
-            } else if (gx > w - 46 && gy < 20) {
-                t->kind = 2;
-                open_chat(app, "");
-            } else if (gx < 46 && gy < 20) {
-                t->kind = 2;
-                app->screen = SCREEN_PAUSE;
-            } else if (gy > h - 24 && fabsf(gx - w / 2) < 91) {
-                t->kind = 2;
-                pending_click.clicked = 1;
-                pending_click.x = x;
-                pending_click.y = y;
-            } else if (gx < w * 0.4f) {
-                t->kind = 1;
-            }
+        t->kind = TOUCH_LOOK;
+        if (!game) return;
+        cell = pad_cell(app, gx, gy);
+        if (cell == 4) {
+            t->kind = TOUCH_BUTTON;
+            app->touch_sneak = !app->touch_sneak;
+        } else if (cell >= 0) {
+            t->kind = TOUCH_PAD;
+            set_pad(app, cell);
+        } else if (gx > w - 8 - JUMP_SIZE && gy > h - 8 - JUMP_SIZE) {
+            t->kind = TOUCH_BUTTON;
+            app->touch_jump = 1;
+        } else if (gx > w - 24 && gy < 24) {
+            t->kind = TOUCH_BUTTON;
+            app->screen = SCREEN_PAUSE;
+        } else if (gx > w - 48 && gx < w - 24 && gy < 24) {
+            t->kind = TOUCH_BUTTON;
+            open_chat(app, "");
+        } else if (gy > h - 24 && fabsf(gx - w / 2) < 91) {
+            t->kind = TOUCH_BUTTON;
+            pending_click.clicked = 1;
+            pending_click.x = x;
+            pending_click.y = y;
         }
         return;
     }
@@ -960,18 +1182,25 @@ void fern_app_pointer(FernApp *app, int id, int phase, float x, float y) {
         float dx = x - t->x, dy = y - t->y;
         t->x = x;
         t->y = y;
-        if (fabsf(x - t->x0) + fabsf(y - t->y0) > 12 * app->scale) t->moved = 1;
-        if (game && app->config.touch && t->kind == 0 && !app->touch_attack) {
-            fern_app_look(app, dx * 2.0f / app->scale, dy * 2.0f / app->scale);
-        } else if (game && t->kind == 0 && app->touch_attack) {
-            fern_app_look(app, dx * 1.2f / app->scale, dy * 1.2f / app->scale);
+        if (fabsf(x - t->x0) + fabsf(y - t->y0) > 10 * app->scale) t->moved = 1;
+        if (!game) return;
+        if (t->kind == TOUCH_PAD) {
+            set_pad(app, pad_cell(app, gx, gy));
+        } else if (t->kind == TOUCH_LOOK) {
+            // While the finger digs, the aim follows it. Else it turns the camera.
+            if (app->touch_attack) aim_at(app, x, y);
+            else if (t->moved) fern_app_look(app, dx * 2.0f / app->scale, dy * 2.0f / app->scale);
         }
         return;
     }
     // Up.
-    if (t->kind == 0) {
-        if (game && app->config.touch) {
-            if (!t->moved && !app->touch_attack && app->now - t->t0 < 0.3) app->input.use = 1;
+    if (t->kind == TOUCH_LOOK) {
+        if (game) {
+            // A short tap uses the block under the finger: it places a block.
+            if (!t->moved && !app->touch_attack && app->now - t->t0 < 0.3) {
+                aim_at(app, x, y);
+                app->input.use = 1;
+            }
         } else {
             pending_click.clicked = 1;
             pending_click.x = x;
@@ -979,27 +1208,21 @@ void fern_app_pointer(FernApp *app, int id, int phase, float x, float y) {
         }
         app->touch_attack = 0;
     }
-    if (t->kind == 2) app->touch_jump = 0;
+    if (t->kind == TOUCH_PAD) set_pad(app, -1);
+    if (t->kind == TOUCH_BUTTON) app->touch_jump = 0;
     t->id = -1;
 }
 
+// A look touch that stays still for 0.3 s digs the block under it.
 static void update_touch(FernApp *app) {
     int i;
-    app->stick_x = app->stick_y = 0;
     for (i = 0; i < MAX_TOUCHES; i++) {
         Touch *t = &app->touch[i];
-        if (t->id < 0) continue;
-        if (t->kind == 1) {
-            float r = 20 * app->ui;
-            app->stick_x = (t->x - t->x0) / r;
-            app->stick_y = (t->y - t->y0) / r;
-            if (app->stick_x > 1) app->stick_x = 1;
-            if (app->stick_x < -1) app->stick_x = -1;
-            if (app->stick_y > 1) app->stick_y = 1;
-            if (app->stick_y < -1) app->stick_y = -1;
+        if (t->id < 0 || t->kind != TOUCH_LOOK) continue;
+        if (!t->moved && app->now - t->t0 > 0.3 && !app->touch_attack) {
+            app->touch_attack = 1;
+            aim_at(app, t->x, t->y);
         }
-        // Hold a look touch still to dig.
-        if (t->kind == 0 && !t->moved && app->now - t->t0 > 0.35) app->touch_attack = 1;
     }
 }
 
@@ -1019,13 +1242,15 @@ static void update_game_input(FernApp *app) {
     in->sneak = app->keys[FK_SNEAK];
     if (app->config.touch) {
         update_touch(app);
-        if (app->stick_x || app->stick_y) {
-            in->forward = -app->stick_y;
-            in->strafe = -app->stick_x;
+        if (app->pad_forward || app->pad_strafe) {
+            in->forward = (float)app->pad_forward;
+            in->strafe = (float)app->pad_strafe;
         }
         in->jump |= app->touch_jump;
         in->sneak |= app->touch_sneak;
         in->attack = app->touch_attack;
+        // Without a finger on the world, nothing is aimed at.
+        if (!app->touch_attack && !in->use) in->aim = 0;
     }
 }
 
@@ -1105,6 +1330,8 @@ void fern_app_command(FernApp *app, const char *line) {
     } else if (sscanf(line, "screen %127s", a) == 1) {
         if (!strcmp(a, "versions")) app->screen = SCREEN_VERSIONS;
         else if (!strcmp(a, "menu")) app->screen = SCREEN_MENU;
+        else if (!strcmp(a, "join")) app->screen = SCREEN_JOIN;
+        else if (!strcmp(a, "options")) app->screen = SCREEN_OPTIONS;
     }
 }
 
@@ -1150,6 +1377,8 @@ void fern_app_frame(FernApp *app, double now) {
     switch (app->screen) {
     case SCREEN_MEASURE: draw_measure(app); break;
     case SCREEN_MENU: draw_menu(app); break;
+    case SCREEN_JOIN: draw_join(app); break;
+    case SCREEN_OPTIONS: draw_options(app); break;
     case SCREEN_VERSIONS: draw_versions(app); break;
     case SCREEN_GAME:
         draw_hud(app);
