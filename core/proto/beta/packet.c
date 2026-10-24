@@ -308,14 +308,16 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
     case 0x36: // Block action
         fern_read_bytes(r, 12);
         break;
-    case 0x3C: { // Explosion
-        int32_t count;
-        fern_read_bytes(r, 28);
-        count = fern_read_i32(r);
-        if (count < 0) r->bad = 1;
-        fern_read_bytes(r, fern_reader_ok(r) ? (size_t)count * 3 : 0);
+    case 0x3C: // Explosion
+        p->u.explosion.x = fern_read_f64(r);
+        p->u.explosion.y = fern_read_f64(r);
+        p->u.explosion.z = fern_read_f64(r);
+        fern_read_f32(r);
+        p->u.explosion.count = fern_read_i32(r);
+        if (p->u.explosion.count < 0) r->bad = 1;
+        p->u.explosion.records =
+            fern_read_bytes(r, fern_reader_ok(r) ? (size_t)p->u.explosion.count * 3 : 0);
         break;
-    }
     case 0x3D: // Sound or particle effect
         fern_read_bytes(r, 17);
         break;

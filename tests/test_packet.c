@@ -155,3 +155,27 @@ TEST(packet_writes_an_empty_place_item) {
     CHECK_EQ(w.data[12], 0xFF);
     fern_writer_free(&w);
 }
+
+TEST(packet_reads_the_records_of_an_explosion) {
+    FernWriter w;
+    FernPacket p;
+    size_t used = 0;
+    fern_writer_init(&w);
+    fern_write_u8(&w, 0x3C);
+    fern_write_f64(&w, 1.5);
+    fern_write_f64(&w, 64.0);
+    fern_write_f64(&w, -2.5);
+    fern_write_f32(&w, 4.0f);
+    fern_write_i32(&w, 2);
+    fern_write_u8(&w, 1);
+    fern_write_u8(&w, 0);
+    fern_write_u8(&w, 0xFF);
+    fern_write_u8(&w, 0);
+    fern_write_u8(&w, 2);
+    fern_write_u8(&w, 0);
+    CHECK_EQ(decode(&w, &p, &used), FERN_DECODE_OK);
+    CHECK_EQ(used, w.len);
+    CHECK_EQ(p.u.explosion.count, 2);
+    CHECK_EQ((int8_t)p.u.explosion.records[2], -1);
+    fern_writer_free(&w);
+}

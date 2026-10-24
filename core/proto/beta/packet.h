@@ -82,6 +82,11 @@ typedef struct {
             const uint8_t *metas;
         } multi;
         struct { int32_t x, y, z; uint8_t type, meta; } block;
+        struct {
+            double x, y, z;
+            int32_t count;
+            const uint8_t *records;  // count x 3 signed bytes: dx, dy, dz
+        } explosion;
         struct { int8_t reason; } state;
         struct { int8_t window; int16_t slot; FernItem item; } set_slot;
         struct { int8_t window; int16_t count; FernItem items[100]; } items;
