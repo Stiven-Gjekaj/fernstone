@@ -1,8 +1,9 @@
 #!/bin/sh
 # Fetch and build MetalANGLE, the ANGLE fork that draws GLES2 with Metal.
 # Usage: scripts/angle.sh
-# The result is a static framework for iOS (arm64) and one for macOS
-# (arm64) in deps/angle/. The iOS and macOS shells link them.
+# The result is a static library for iOS (arm64), one for macOS (arm64),
+# and the GLES2 and EGL headers, in deps/angle/. The iOS and macOS shells
+# link them.
 # Git does not track deps/.
 set -e
 
@@ -30,8 +31,11 @@ build() {
 build MetalANGLE_static iphoneos IPHONEOS_DEPLOYMENT_TARGET=15.0
 build MetalANGLE_static_mac macosx MACOSX_DEPLOYMENT_TARGET=12.0
 
-rm -rf "$OUT/ios" "$OUT/macos"
+# Join the static libraries of each platform into one libangle.a. The
+# shells use EGL with a CAMetalLayer, so they need no MGLKit.
+rm -rf "$OUT"
 mkdir -p "$OUT/ios" "$OUT/macos"
-cp -R "$(find "$DEPS/angle-dd-iphoneos" -name 'MetalANGLE.framework' -path '*Release-iphoneos*' | head -1)" "$OUT/ios/"
-cp -R "$(find "$DEPS/angle-dd-macosx" -name 'MetalANGLE.framework' -path '*Release*' | head -1)" "$OUT/macos/"
+libtool -static -o "$OUT/ios/libangle.a" "$DEPS"/angle-dd-iphoneos/Build/Products/Release-iphoneos/*.a 2>/dev/null
+libtool -static -o "$OUT/macos/libangle.a" "$DEPS"/angle-dd-macosx/Build/Products/Release/*.a 2>/dev/null
+cp -R "$SRC/include" "$OUT/include"
 echo "$OUT"
