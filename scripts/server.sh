@@ -24,7 +24,6 @@ online-mode=false
 server-port=25565
 level-name=world
 level-seed=fernstone
-spawn-protection=0
 max-players=8
 view-distance=10
 PROPS
@@ -32,6 +31,12 @@ PROPS
     if [ -f server.pid ] && kill -0 "$(cat server.pid)" 2>/dev/null; then
         echo "server: it runs already (pid $(cat server.pid))"
         exit 0
+    fi
+    # Poseidon keeps the spawn protection in bukkit.yml. Turn it off, so that
+    # each player can build next to the spawn. The file comes on the first
+    # start.
+    if [ -f bukkit.yml ]; then
+        sed -i '' 's/spawn-radius: [0-9]*/spawn-radius: 0/' bukkit.yml
     fi
     # The console reads commands from a pipe, so that "stop" can reach it.
     rm -f console
