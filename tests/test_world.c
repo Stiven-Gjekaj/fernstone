@@ -65,3 +65,13 @@ TEST(blocks_map_unknown_wire_ids) {
     CHECK_EQ(fern_block_from_wire(14, 0), B_AIR);
     CHECK(fern_block_info(B_UNKNOWN)->flags & BF_SOLID);
 }
+
+TEST(blocks_hide_the_blocks_that_an_old_version_does_not_have) {
+    CHECK_EQ(fern_block_from_wire(14, 33), B_PISTON);
+    CHECK_EQ(fern_block_from_wire(13, 33), B_UNKNOWN);
+    CHECK_EQ(fern_block_from_wire(7, 23), B_UNKNOWN);
+    CHECK_EQ(fern_block_from_wire(8, 23), B_DISPENSER);
+    CHECK_EQ(fern_block_from_wire(2, 87), B_UNKNOWN);
+    CHECK_EQ(fern_block_from_wire(3, 87), B_NETHERRACK);
+    CHECK_EQ(fern_block_to_wire(6, B_SANDSTONE), -1);
+}

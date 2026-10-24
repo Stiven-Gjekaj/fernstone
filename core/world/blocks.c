@@ -249,19 +249,27 @@ int fern_block_texture(FernState state, int face) {
     }
 }
 
-// The block tables. Table 14 is b1.7.3: wire IDs 0 to 96 are the internal
-// IDs. The older versions use the same IDs for the blocks that they have
-// (see version.c), so they use the same table with a smaller top ID.
+// The block tables. The table number is the packet layout of the version
+// (2 to 14). Each table has the wire IDs of b1.7.3, without the blocks that
+// came later. Uberbukkit gives the lists (Protocol2 to Protocol13).
+static int known(int table, int id) {
+    if (table <= 13 && (id == 29 || id == 33 || id == 34 || id == 36)) return 0;
+    if (table <= 11 && (id == 31 || id == 32 || id == 96)) return 0;
+    if (table <= 10 && (id == 27 || id == 28 || id == 30)) return 0;
+    if (table <= 9 && id == 95) return 0;
+    if (table <= 8 && (id == 26 || id == 93 || id == 94)) return 0;
+    if (table <= 7 && id >= 21 && id <= 25) return 0;
+    if (table <= 2 && id >= 86 && id <= 91) return 0;
+    return 1;
+}
+
 int fern_block_from_wire(int table, int wire_id) {
-    int top = table;
-    if (table == 14 || table == 13) top = B_TRAPDOOR;
-    else if (table >= B_COUNT || table < 0) top = B_TRAPDOOR;
-    if (wire_id < 0 || wire_id > top) return wire_id == 0 ? B_AIR : B_UNKNOWN;
+    if (wire_id == 0) return B_AIR;
+    if (wire_id < 0 || wire_id > B_TRAPDOOR || !known(table, wire_id)) return B_UNKNOWN;
     return wire_id;
 }
 
 int fern_block_to_wire(int table, int block) {
-    if (block < 0 || block >= B_COUNT) return -1;
-    if (fern_block_from_wire(table, block) != block) return -1;
+    if (block <= 0 || block > B_TRAPDOOR || !known(table, block)) return block == 0 ? 0 : -1;
     return block;
 }
