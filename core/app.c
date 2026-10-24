@@ -1399,6 +1399,21 @@ static int slot_pos(const FernClient *c, int i, int *x, int *y) {
     return 1;
 }
 
+// Draw the player model in the GUI, with the feet at x, y in GUI pixels.
+static void draw_window_player(FernApp *app, float x, float y) {
+    float u = app->ui, scale = 30 * u;
+    float dx = app->mouse_x / u - x, dy = app->mouse_y / u - (y - 50);
+    FernTerrainLook look = {1.0f, 1e6f, 2e6f, {0, 0, 0}};
+    FernMat m;
+    fern_d2_flush(app->d2);
+    m = fern_mat_mul(fern_mat_ortho(0, (float)app->width, (float)app->height, 0, -1000, 1000),
+                     fern_mat_mul(fern_mat_translate(x * u, y * u, 0), fern_mat_scale(scale, -scale, scale)));
+    app->models.count = 0;
+    fern_model_player(&app->models, (float)(atan(dx / 40.0) * 40.0), (float)(-atan(dy / 40.0) * 20.0), 0, 0, 0, 0xF0);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    fern_terrain_draw_quads(app->terrain, &m, app->tex_char, 0, 0, 0, app->models.v, app->models.count, &look);
+}
+
 static void draw_window(FernApp *app) {
     FernClient *c = &app->client;
     float u = app->ui, h = (float)window_height(c);
@@ -1425,6 +1440,9 @@ static void draw_window(FernApp *app) {
         text(app, c->win_title, x0 + 8, y0 + 6, FERN_RGBA(64, 64, 64, 255));
     else
         text(app, "Crafting", x0 + 86, y0 + 16, FERN_RGBA(64, 64, 64, 255));
+    // The player in the black box of the inventory. It turns to the pointer,
+    // as in Beta.
+    if (c->win_id == 0) draw_window_player(app, x0 + 51, y0 + 75);
     // The progress of a furnace: the arrow and the flame.
     if (tex && c->win_type == 2 && c->win_id != 0) {
         float arrow = c->win_progress[0] * 24.0f / 200.0f;
