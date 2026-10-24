@@ -63,8 +63,8 @@ _One C core and GLES2 for the iPhone 4S on iOS 6, the iPhone, and the Mac_
 <p align="center"><i>The version browser</i></p>
 </td>
 <td width="50%" valign="top">
-<img src="assets/screenshots/mac-beach.png" alt="The Mac: a beach of sand along a lake, with hills far away">
-<p align="center"><i>A beach on the Mac</i></p>
+<img src="assets/screenshots/4s-menu.png" alt="The title screen on the 4S: the word FERNSTONE in cobblestone letters, a yellow splash text, and the Join Server, Version, and Options buttons over a strip of grass">
+<p align="center"><i>The title screen</i></p>
 </td>
 </tr>
 </table>
@@ -166,25 +166,30 @@ Download `Fernstone-macOS.zip` from the latest release, unzip it, and open
 1. Start a Beta server in offline mode, for example
    [Project Poseidon](https://github.com/retromcorg/Project-Poseidon).
    Beta has no LAN mode, so a server must run.
-2. In Fernstone, type the IP address of the server, for example
-   `192.168.1.20`, and your name. Use the IP address, not a name.
-3. Tap **Connect**.
+2. In Fernstone, tap **Join Server**. Type the IP address of the server,
+   for example `192.168.1.20`, and your name. Use the IP address, not a
+   name.
+3. Tap **Join**.
 
 On iOS 14 or later, iOS asks for the local network the first time. If the
 connection fails and iOS did not ask, look at the Local Network setting of
 the app first. In LiveContainer, the text of the prompt comes from the host
 app.
 
+The touch controls are those of Pocket Edition. A finger aims: the block
+under the finger breaks or gets the new block.
+
 | Action | Phone | Mac |
 | ------ | ----- | --- |
-| Walk | The stick on the left half | W A S D |
-| Look | Drag on the right half | The mouse |
-| Break | Hold on the right half | The left button |
-| Place | Tap on the right half | The right button |
-| Jump, sneak | The buttons on the right | Space, Shift |
+| Walk | The D-pad at the bottom left | W A S D |
+| Look | Drag on the world | The mouse |
+| Break | Hold a finger on the block | The left button |
+| Place | Tap the block | The right button |
+| Jump | The button at the bottom right | Space |
+| Sneak | The middle of the D-pad | Shift |
 | Hotbar | Tap a slot | 1 to 9, the wheel |
-| Chat | The Chat button | T, or / for a command |
-| Menu | The Pause button | Escape |
+| Chat | The speech button at the top right | T, or / for a command |
+| Menu | The pause button at the top right | Escape |
 
 ## Build
 
