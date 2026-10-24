@@ -39,6 +39,10 @@ static void status(FernClient *c) {
            "packets %ld, players %d, mobs %d, time %lld\n",
            c->state, c->body.x, c->body.y, c->body.z, c->body.on_ground, c->health, c->world.columns,
            c->chunks_in, c->packets_in, players, mobs, (long long)c->world.time);
+    printf("status: held %d x%d, below %d, target %d %d %d (%d)\n", c->inv[36 + c->held].id,
+           c->inv[36 + c->held].count,
+           FERN_BLOCK(fern_world_get(&c->world, (int)floor(c->body.x), (int)floor(c->body.y) - 1, (int)floor(c->body.z))),
+           c->target.x, c->target.y, c->target.z, c->target.hit);
     for (i = 0; i < FERN_ENTITY_MAX; i++)
         if (c->ents.e[i].used && c->ents.e[i].kind == ENT_PLAYER)
             printf("status: player %s at %.2f %.2f %.2f\n", c->ents.e[i].name, c->ents.e[i].x, c->ents.e[i].y,
