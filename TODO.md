@@ -40,7 +40,7 @@ milestone.
 - The manifests and the device benchmark.
 - The older Alpha and Beta versions in the protocol adapter.
 
-## 1.0: three devices in one world
+## 1.0: three devices in one world (released, 2026-10-24, one test open)
 
 - Install the .ipa on the iPhone 15 Pro Max with SideStore and run it in
   LiveContainer on iOS 27. Join the Poseidon world with the 4S and the Mac
