@@ -917,7 +917,11 @@ static void draw_hud(FernApp *app) {
         fern_terrain_stats(app->terrain, &meshes, &drawn, &queued);
         snprintf(line, sizeof(line), "Fernstone %s (%.1f ms) %s", app->opt.version, app->frame_ms, app->config.platform);
         text(app, line, 2, 2, 0xFFFFFFFF);
-        snprintf(line, sizeof(line), "x %.2f y %.2f z %.2f", c->body.x, c->body.y, c->body.z);
+        {
+            int bx = (int)floor(c->body.x), by = (int)floor(c->body.y), bz = (int)floor(c->body.z);
+            snprintf(line, sizeof(line), "x %.2f y %.2f z %.2f, sky light %d, block light %d", c->body.x, c->body.y,
+                     c->body.z, fern_world_sky(&c->world, bx, by, bz), fern_world_light(&c->world, bx, by, bz));
+        }
         text(app, line, 2, 12, 0xFFFFFFFF);
         snprintf(line, sizeof(line), "columns %d, meshes %d, drawn %d, queued %d", c->world.columns, meshes, drawn, queued);
         text(app, line, 2, 22, 0xFFFFFFFF);
