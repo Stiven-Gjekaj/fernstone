@@ -439,7 +439,7 @@ void fern_app_wheel(FernApp *app, int steps) {
 }
 
 int fern_app_wants_capture(FernApp *app) {
-    return app->screen == SCREEN_GAME && !app->chat_open && !app->config.touch;
+    return app->screen == SCREEN_GAME && !app->chat_open && !app->config.touch && app->client.health > 0;
 }
 
 int fern_app_wants_keyboard(FernApp *app) {
@@ -750,6 +750,13 @@ static void draw_hud(FernApp *app) {
         snprintf(line, sizeof(line), "columns %d, meshes %d, drawn %d, queued %d", c->world.columns, meshes, drawn, queued);
         text(app, line, 2, 22, 0xFFFFFFFF);
     }
+    if (c->state == CLIENT_PLAY && c->spawned && c->health <= 0) {
+        rect(app, 0, 0, gw(app), gh(app), FERN_RGBA(120, 0, 0, 120));
+        fern_d2_text(app->d2, "You died!", (cx - text_w(app, "You died!")) * u, (gh(app) / 2 - 40) * u, u * 2,
+                     0xFFFFFFFF, 1);
+        if (button(app, "Respawn", cx - 100, gh(app) / 2, 200, 1)) fern_client_respawn(c);
+        if (button(app, "Disconnect", cx - 100, gh(app) / 2 + 24, 200, 1)) leave_game(app);
+    }
     if (c->state != CLIENT_PLAY || !c->spawned) {
         rect(app, 0, 0, gw(app), gh(app), FERN_RGBA(0, 0, 0, 160));
         text_center(app, c->state == CLIENT_PLAY ? "Downloading the terrain" : "Connecting to the server", cx,
@@ -910,7 +917,8 @@ static Touch *touch_of(FernApp *app, int id) {
 void fern_app_pointer(FernApp *app, int id, int phase, float x, float y) {
     Touch *t;
     float gx = x / app->ui, gy = y / app->ui, w = gw(app), h = gh(app);
-    int game = app->screen == SCREEN_GAME && !app->chat_open;
+    // On the death screen, a touch goes to the buttons.
+    int game = app->screen == SCREEN_GAME && !app->chat_open && app->client.health > 0;
     if (phase == FERN_POINTER_DOWN) {
         int i;
         for (i = 0; i < MAX_TOUCHES && app->touch[i].id >= 0; i++) {}
