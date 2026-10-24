@@ -48,32 +48,38 @@ _One C core and GLES2 for the iPhone 4S on iOS 6, the iPhone, and the Mac_
 
 <table>
 <tr>
-<td width="50%" valign="top">
-<img src="assets/screenshots/4s-world.png" alt="The iPhone 4S at the shore of a lake: sand, grass hills, and water, with the touch buttons and the hotbar">
-<p align="center"><i>The iPhone 4S on iOS 6.1.3</i></p>
-</td>
-<td width="50%" valign="top">
-<img src="assets/screenshots/mac-player.png" alt="The Mac: another player with the skin of the jar stands on the sand next to a dirt wall">
-<p align="center"><i>The Mac, with the player of the iPhone</i></p>
+<td colspan="2" valign="top">
+<img src="assets/screenshots/mac-players.png" alt="The Mac looks at the player of the 4S and the player of the iOS simulator. The three players stand in a triangle on grass next to a pond in a forest">
+<p align="center"><i>Three devices in one world: the Mac sees the 4S and the simulator</i></p>
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
-<img src="assets/screenshots/4s-versions.png" alt="The version browser on the 4S: 512 MB, OpenGL ES 2, mesh score 36, and b1.7.3 tagged Recommended">
-<p align="center"><i>The version browser</i></p>
+<img src="assets/screenshots/4s-world.png" alt="The iPhone 4S on grass in a forest: an oak tree, birch trees, and a pond, with the touch buttons and a full hotbar">
+<p align="center"><i>The iPhone 4S on iOS 6.1.3</i></p>
 </td>
+<td width="50%" valign="top">
+<img src="assets/screenshots/4s-players.png" alt="The 4S looks at the player of the Mac and the player of the iOS simulator on grass terraces in a forest">
+<p align="center"><i>The 4S sees the Mac and the simulator</i></p>
+</td>
+</tr>
+<tr>
 <td width="50%" valign="top">
 <img src="assets/screenshots/4s-menu.png" alt="The title screen on the 4S: the word FERNSTONE in cobblestone letters, a yellow splash text, and the Join Server, Version, and Options buttons over a strip of grass">
 <p align="center"><i>The title screen</i></p>
 </td>
+<td width="50%" valign="top">
+<img src="assets/screenshots/4s-versions.png" alt="The version browser on the 4S: 512 MB, OpenGL ES 2, mesh score 36, and b1.7.3 tagged Recommended">
+<p align="center"><i>The version browser</i></p>
+</td>
 </tr>
 <tr>
 <td width="50%" valign="top">
-<img src="assets/screenshots/4s-inventory.png" alt="The inventory screen on the 4S: the player model, the crafting grid, and cobblestone, torches, a diamond sword, and apples in the hotbar">
+<img src="assets/screenshots/4s-inventory.png" alt="The inventory screen on the 4S: the player model, the crafting grid, and cobblestone, planks, torches, a diamond sword, a diamond pickaxe, and apples in the hotbar">
 <p align="center"><i>The inventory on the 4S</i></p>
 </td>
 <td width="50%" valign="top">
-<img src="assets/screenshots/4s-torch.png" alt="The 4S at night: a torch lights the sand at the shore of the lake, and another player stands on the sand">
+<img src="assets/screenshots/4s-torch.png" alt="The 4S at night in a forest: two torches light the grass, and another player stands on a terrace">
 <p align="center"><i>Torch light at night on the 4S</i></p>
 </td>
 </tr>
