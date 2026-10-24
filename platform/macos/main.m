@@ -115,6 +115,7 @@ static FernKey key_of(NSEvent *e) {
     case 126: return FK_UP;
     case 125: return FK_DOWN;
     case 99: return FK_DEBUG;     // F3
+    case 14: return FK_INVENTORY; // E
     case 18: return FK_1; case 19: return FK_2; case 20: return FK_3; case 21: return FK_4;
     case 23: return FK_5; case 22: return FK_6; case 26: return FK_7; case 28: return FK_8; case 25: return FK_9;
     default: return FK_NONE;
@@ -157,16 +158,28 @@ static FernKey key_of(NSEvent *e) {
     fern_app_pointer(self.app, 0, FERN_POINTER_UP, p.x, p.y);
 }
 
+// The right button: in the game it places, and in a window it is the
+// right click (pointer 1).
 - (void)rightMouseDown:(NSEvent *)e {
-    if (_captured) fern_app_button(self.app, 1, 1);
+    if (_captured) { fern_app_button(self.app, 1, 1); return; }
+    NSPoint p = [self pixel:e];
+    fern_app_pointer(self.app, 1, FERN_POINTER_DOWN, p.x, p.y);
 }
 
 - (void)rightMouseUp:(NSEvent *)e {
-    if (_captured) fern_app_button(self.app, 1, 0);
+    if (_captured) { fern_app_button(self.app, 1, 0); return; }
+    NSPoint p = [self pixel:e];
+    fern_app_pointer(self.app, 1, FERN_POINTER_UP, p.x, p.y);
 }
 
 - (void)mouseMoved:(NSEvent *)e {
-    if (_captured) fern_app_look(self.app, (float)e.deltaX, (float)e.deltaY);
+    if (_captured) {
+        fern_app_look(self.app, (float)e.deltaX, (float)e.deltaY);
+        return;
+    }
+    // The pointer of a window: the item on the cursor follows it.
+    NSPoint p = [self pixel:e];
+    fern_app_pointer(self.app, 0, FERN_POINTER_MOVE, p.x, p.y);
 }
 
 - (void)mouseDragged:(NSEvent *)e {
