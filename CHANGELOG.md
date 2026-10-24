@@ -22,7 +22,10 @@ The menus and the touch controls look like those of Pocket Edition.
   items with the rules of Beta, and the server confirms each click.
 - The sky light and the block light spread again after each block change.
   A torch lights the blocks around it, and a new roof makes a shadow.
-- The debug screen shows the light at the feet of the player.
+- The debug screen shows the light, the block, and the water state at the
+  feet of the player.
+- A swimmer climbs out of the water over an edge one block high, as in
+  Beta. Before, a player in a pond one block deep could not get out.
 - The delete key removes the characters of a text field on iOS 6.
   Checked in the iOS 27 simulator. Not checked on the 4S yet.
 
