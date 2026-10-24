@@ -33,12 +33,13 @@ _One C core and GLES2 for the iPhone 4S on iOS 6, the iPhone, and the Mac_
 ---
 
 > [!NOTE]
-> **Version 1.0.0 is out.** The iPhone 4S, the Mac, and the iOS 27
-> simulator joined one Poseidon world at the same time and saw each other.
-> Two clients saw the block changes of each other. The test of the iPhone
-> 15 Pro Max in LiveContainer is still to do. [CHANGELOG.md](CHANGELOG.md) lists
-> the changes of each release. [docs/decisions.md](docs/decisions.md) holds
-> each decision and its reason.
+> **Version 1.1.0 is out.** The menus and the touch controls look like
+> those of Pocket Edition. The mobs, the dropped items, the moving water and
+> lava, the inventory, and the light work as in Beta. The iPhone 4S, the
+> Mac, and the iOS simulator play in one Poseidon world at the same time.
+> The test of the iPhone 15 Pro Max in LiveContainer is still to do.
+> [CHANGELOG.md](CHANGELOG.md) lists the changes of each release.
+> [docs/decisions.md](docs/decisions.md) holds each decision and its reason.
 
 > [!IMPORTANT]
 > This is a fan project. It is not from Mojang or Microsoft. The repository
@@ -208,8 +209,13 @@ under the finger breaks or gets the new block.
 | Jump | The button at the bottom right | Space |
 | Sneak | The middle of the D-pad | Shift |
 | Hotbar | Tap a slot | 1 to 9, the wheel |
+| Inventory | The "..." button at the right of the hotbar | E |
+| Move an item in a window | Tap a slot. Hold a slot to take or put one item. | The left button. The right button takes or puts one item. |
 | Chat | The speech button at the top right | T, or / for a command |
 | Menu | The pause button at the top right | Escape |
+
+A tap or a click outside a window closes it. On the Mac, E and Escape also
+close it.
 
 ## Build
 
