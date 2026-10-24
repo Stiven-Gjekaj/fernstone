@@ -35,8 +35,8 @@ _One C core and GLES2 for the iPhone 4S on iOS 6, the iPhone, and the Mac_
 > [!NOTE]
 > **Version 0.6.0 is the last milestone before 1.0.** The iPhone 4S, the
 > Mac, and the iOS 27 simulator joined one Poseidon world at the same time
-> and saw each other and their block changes. The test of the iPhone 15 Pro
-> Max in LiveContainer is still to do. [CHANGELOG.md](CHANGELOG.md) lists
+> and saw each other. Two clients saw the block changes of each other. The
+> test of the iPhone 15 Pro Max in LiveContainer is still to do. [CHANGELOG.md](CHANGELOG.md) lists
 > the changes of each release. [docs/decisions.md](docs/decisions.md) holds
 > each decision and its reason.
 
@@ -104,7 +104,7 @@ The 4S draws a frame in 16.4 ms at a render distance of 4 chunks.
 
 | Version | Status |
 | ------- | ------ |
-| b1.7.3 | Tested on Poseidon and Uberbukkit. Recommended on each device. |
+| b1.7.3 | Tested on Poseidon and Uberbukkit. Recommended on the 4S and the Mac. |
 | b1.6.6, b1.5_01, b1.4_01, b1.3_01, b1.2_02, b1.1_01 | Tested on Uberbukkit |
 | a1.2.6, a1.2.3_04, a1.2.2, a1.2.1_01, a1.1.2_01 | Tested on Uberbukkit |
 | b1.1_02, a1.0.17_04, a1.0.16, a1.0.15 | Not tested |
