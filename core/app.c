@@ -1,4 +1,6 @@
 #include "app.h"
+#include "bench.h"
+#include "manifest.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +15,7 @@
 #include "terrain.h"
 #include "zip.h"
 
-typedef enum { SCREEN_MENU, SCREEN_VERSIONS, SCREEN_GAME, SCREEN_PAUSE, SCREEN_GONE } Screen;
+typedef enum { SCREEN_MEASURE, SCREEN_MENU, SCREEN_VERSIONS, SCREEN_GAME, SCREEN_PAUSE, SCREEN_GONE } Screen;
 
 // The text fields of the menu.
 enum { FIELD_NONE, FIELD_SERVER, FIELD_NAME, FIELD_CHAT };
@@ -71,6 +73,9 @@ struct FernApp {
 
     char shot_path[1024];     // A debug command asked for a screenshot.
 
+    FernDevice device;        // The measured device.
+    FernBench bench;
+
     // The probe of milestone 2.
     FernNet probe_net;
     int probing;
@@ -122,6 +127,42 @@ static void options_save(FernApp *app) {
     fprintf(f, "server=%s\nname=%s\nversion=%s\nrender=%d\nsensitivity=%.2f\n", app->opt.server, app->opt.name,
             app->opt.version, app->opt.render, app->opt.sensitivity);
     fclose(f);
+}
+
+/* ---- the device ---- */
+
+static void device_path(FernApp *app, char *out, size_t cap) {
+    snprintf(out, cap, "%s/device.txt", app->data_dir);
+}
+
+// Read the numbers of the first launch. Give 0 if they are not there.
+static int device_load(FernApp *app) {
+    char path[1100];
+    FILE *f;
+    int ok;
+    device_path(app, path, sizeof(path));
+    f = fopen(path, "r");
+    if (!f) return 0;
+    ok = fscanf(f, "ram=%d\ngl=%d\nbench=%d", &app->device.ram_mb, &app->device.gl, &app->device.bench) == 3;
+    fclose(f);
+    return ok;
+}
+
+static void device_save(FernApp *app) {
+    char path[1100];
+    FILE *f;
+    device_path(app, path, sizeof(path));
+    f = fopen(path, "w");
+    if (!f) return;
+    fprintf(f, "ram=%d\ngl=%d\nbench=%d\n", app->device.ram_mb, app->device.gl, app->device.bench);
+    fclose(f);
+}
+
+// The major version of the GLES context, from GL_VERSION.
+static int gl_major(void) {
+    const char *v = (const char *)glGetString(GL_VERSION);
+    const char *es = v ? strstr(v, "OpenGL ES ") : NULL;
+    return es ? atoi(es + 10) : 2;
 }
 
 /* ---- assets ---- */
@@ -365,6 +406,8 @@ void fern_app_key(FernApp *app, FernKey key, int down) {
     case SCREEN_VERSIONS:
         if (key == FK_ESCAPE || key == FK_ENTER) app->screen = SCREEN_MENU;
         break;
+    case SCREEN_MEASURE:
+        break;
     }
 }
 
@@ -527,23 +570,57 @@ static void draw_menu(FernApp *app) {
     text(app, "Fernstone 0.4", 2, gh(app) - 10, FERN_RGBA(120, 120, 120, 255));
 }
 
-static void draw_versions(FernApp *app) {
-    float cx = gw(app) / 2, y = 20;
-    int i;
+static void draw_measure(FernApp *app) {
+    float cx = gw(app) / 2;
+    char line[128];
+    // A slice of the benchmark in each frame keeps the screen live.
+    fern_bench_step(&app->bench, 25);
     background(app);
-    text_center(app, "Select a version", cx, y, FERN_RGBA(255, 255, 255, 255));
-    y += 18;
-    for (i = fern_version_count() - 1; i >= 0; i--) {
+    text_center(app, "Measuring this device", cx, gh(app) / 2 - 20, 0xFFFFFFFF);
+    snprintf(line, sizeof(line), "Memory %d MB, OpenGL ES %d", app->device.ram_mb, app->device.gl);
+    text_center(app, line, cx, gh(app) / 2 - 4, FERN_RGBA(200, 200, 200, 255));
+    rect(app, cx - 100, gh(app) / 2 + 12, 200, 6, FERN_RGBA(60, 60, 60, 255));
+    rect(app, cx - 100, gh(app) / 2 + 12, (float)(200 * app->bench.work_s / 2.0), 6, FERN_RGBA(120, 200, 90, 255));
+    if (app->bench.done) {
+        app->device.bench = app->bench.score;
+        device_save(app);
+        fern_log("device: %d MB, GLES %d, bench %d (%ld meshes in %.2f s)", app->device.ram_mb, app->device.gl,
+                 app->device.bench, app->bench.meshes, app->bench.work_s);
+        app->screen = SCREEN_MENU;
+    }
+}
+
+static void draw_versions(FernApp *app) {
+    float cx = gw(app) / 2, top = 31;
+    const char *ids[64];
+    FernTag tags[64];
+    int i, n = fern_version_count(), rows = (n + 1) / 2;
+    char line[128];
+    background(app);
+    text_center(app, "Select a version", cx, 6, FERN_RGBA(255, 255, 255, 255));
+    snprintf(line, sizeof(line), "This device: %d MB, OpenGL ES %d, mesh score %d", app->device.ram_mb, app->device.gl,
+             app->device.bench);
+    text_center(app, line, cx, 18, FERN_RGBA(160, 160, 160, 255));
+    for (i = 0; i < n && i < 64; i++) ids[i] = fern_version_at(i)->id;
+    fern_manifest_tags(&app->device, ids, n, tags);
+    for (i = 0; i < n && i < 64; i++) {
         const FernVersion *v = fern_version_at(i);
-        if (button(app, v->id, cx - 100, y, 200, 1)) {
+        float x = cx + (i < rows ? -154 : 4), y = top + (i % rows) * 22;
+        const char *tag = tags[i] == TAG_RECOMMENDED ? " Recommended" : tags[i] == TAG_MAY_LAG ? " May lag" : "";
+        int enabled = tags[i] != TAG_TOO_OLD_DEVICE;
+        snprintf(line, sizeof(line), "%s%s%s", v->id, v->tested ? "" : "*", tag);
+        if (button(app, line, x, y, 150, enabled)) {
             snprintf(app->opt.version, sizeof(app->opt.version), "%s", v->id);
             options_save(app);
             load_jar(app);
             app->screen = SCREEN_MENU;
         }
-        y += 22;
+        if (tags[i] == TAG_RECOMMENDED) rect(app, x + 2, y + 2, 3, 16, FERN_RGBA(85, 255, 85, 255));
+        if (tags[i] == TAG_MAY_LAG) rect(app, x + 2, y + 2, 3, 16, FERN_RGBA(255, 170, 0, 255));
+        if (!strcmp(v->id, app->opt.version)) rect(app, x - 3, y + 2, 2, 16, 0xFFFFFFFF);
     }
-    if (button(app, "Back", cx - 100, gh(app) - 28, 200, 1)) app->screen = SCREEN_MENU;
+    text_center(app, "* not tested on a server yet", cx, top + rows * 22, FERN_RGBA(140, 140, 140, 255));
+    if (button(app, "Back", cx - 100, top + rows * 22 + 10, 200, 1)) app->screen = SCREEN_MENU;
 }
 
 static void draw_gone(FernApp *app) {
@@ -1027,6 +1104,13 @@ void fern_app_frame(FernApp *app, double now) {
         app->gl_ready = 1;
         load_jar(app);
         app->last_frame = now;
+        // The first launch measures the device for the version browser.
+        if (!device_load(app) || getenv("FERN_MEASURE")) {
+            app->device.ram_mb = fern_device_ram(app->config.ram_mb);
+            app->device.gl = gl_major();
+            fern_bench_start(&app->bench);
+            app->screen = SCREEN_MEASURE;
+        }
     }
     app->frame_ms = (float)((now - app->last_frame) * 1000.0);
     app->last_frame = now;
@@ -1053,6 +1137,7 @@ void fern_app_frame(FernApp *app, double now) {
 
     fern_d2_begin(app->d2, app->width, app->height);
     switch (app->screen) {
+    case SCREEN_MEASURE: draw_measure(app); break;
     case SCREEN_MENU: draw_menu(app); break;
     case SCREEN_VERSIONS: draw_versions(app); break;
     case SCREEN_GAME:
