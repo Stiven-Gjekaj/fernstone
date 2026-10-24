@@ -196,6 +196,15 @@ static void move_flying(FernBody *b, float strafe, float forward, double speed) 
     b->mz += forward * d * c + strafe * d * s;
 }
 
+static int box_in_liquid(FernWorld *w, const FernBox *me) {
+    int x, y, z;
+    for (x = (int)floor(me->x0); x <= (int)floor(me->x1); x++)
+        for (y = (int)floor(me->y0); y <= (int)floor(me->y1); y++)
+            for (z = (int)floor(me->z0); z <= (int)floor(me->z1); z++)
+                if (fern_block_info(FERN_BLOCK(fern_world_get(w, x, y, z)))->flags & BF_LIQUID) return 1;
+    return 0;
+}
+
 static int body_in_liquid(FernBody *b, FernWorld *w) {
     FernBox me = body_box(b);
     int x, y, z;
@@ -229,6 +238,7 @@ void fern_body_tick(FernBody *b, FernWorld *w, const FernMoveInput *in) {
     }
     b->in_water = body_in_liquid(b, w);
     if (b->in_water) {
+        double oy = b->y;
         if (in->jump) b->my += 0.04;
         move_flying(b, strafe, forward, 0.02);
         move(b, w, b->mx, b->my, b->mz);
@@ -236,6 +246,13 @@ void fern_body_tick(FernBody *b, FernWorld *w, const FernMoveInput *in) {
         b->my *= 0.8;
         b->mz *= 0.8;
         b->my -= 0.02;
+        // A body that swims into a wall climbs out when the place above the
+        // edge is free, as in Beta.
+        if (b->collided_h) {
+            FernBox o = body_box(b);
+            offset(&o, b->mx, b->my + 0.6 - b->y + oy, b->mz);
+            if (!fern_box_hits(w, &o) && !box_in_liquid(w, &o)) b->my = 0.3;
+        }
         return;
     }
     if (in->jump && b->on_ground) b->my = 0.42;

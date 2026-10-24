@@ -100,3 +100,19 @@ TEST(physics_casts_a_ray_onto_the_top_face) {
     CHECK(!h.hit);
     fern_world_clear(&w);
 }
+
+TEST(physics_swims_out_of_a_pond_over_its_edge) {
+    FernWorld w;
+    FernMoveInput in = {1, 0, 1, 0};
+    FernBody b = body_at(0.5, 63, 0.5);
+    int i, z;
+    flat(&w);
+    // The body holds the jump key and walks. A pond one block deep goes
+    // from z = -2 to z = 2. The edge is at z = 3.
+    for (z = -2; z <= 2; z++) fern_world_set(&w, 0, 63, z, FERN_STATE(B_WATER, 0));
+    for (i = 0; i < 100; i++) fern_body_tick(&b, &w, &in);
+    CHECK(b.z > 3.5);
+    // The body is out of the water, over the stone.
+    CHECK(b.y >= 64.0);
+    fern_world_clear(&w);
+}
