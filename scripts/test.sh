@@ -10,7 +10,8 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT="$ROOT/build/tests"
 mkdir -p "$OUT"
 # The tests use the code of the core, but no renderer and no shell.
-CORE=$(ls "$ROOT"/core/*.c "$ROOT"/core/world/*.c "$ROOT"/core/proto/beta/*.c 2>/dev/null || true)
+# app.c joins the core to the renderer, so the tests leave it out.
+CORE=$(ls "$ROOT"/core/*.c "$ROOT"/core/world/*.c "$ROOT"/core/proto/beta/*.c 2>/dev/null | grep -v "/core/app.c$" || true)
 TESTS=$(ls "$ROOT"/tests/*.c)
 INC="-I$ROOT/core -I$ROOT/core/world -I$ROOT/core/proto/beta -I$ROOT/core/render -I$ROOT/tests"
 
