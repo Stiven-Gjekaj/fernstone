@@ -923,6 +923,13 @@ static void draw_hud(FernApp *app) {
                      c->body.z, fern_world_sky(&c->world, bx, by, bz), fern_world_light(&c->world, bx, by, bz));
         }
         text(app, line, 2, 12, 0xFFFFFFFF);
+        {
+            int bx = (int)floor(c->body.x), by = (int)floor(c->body.y), bz = (int)floor(c->body.z);
+            snprintf(line, sizeof(line), "block %d, below %d, on ground %d, in water %d",
+                     FERN_BLOCK(fern_world_get(&c->world, bx, by, bz)), FERN_BLOCK(fern_world_get(&c->world, bx, by - 1, bz)),
+                     c->body.on_ground, c->body.in_water);
+        }
+        text(app, line, 2, 32, 0xFFFFFFFF);
         snprintf(line, sizeof(line), "columns %d, meshes %d, drawn %d, queued %d", c->world.columns, meshes, drawn, queued);
         text(app, line, 2, 22, 0xFFFFFFFF);
     }
