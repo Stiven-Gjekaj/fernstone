@@ -65,6 +65,8 @@ struct FernApp {
     FernTerrain *terrain;
     FernDraw2D *d2;
     GLuint tex_terrain, tex_gui, tex_items, tex_icons, tex_char, tex_white;
+    GLuint tex_mob[256];      // The texture of each mob type, from the jar.
+    GLuint tex_fur;           // The wool of a sheep.
     int have_jar;
     char jar_error[256];
     FernVertexList models;
@@ -197,9 +199,25 @@ static GLuint load_png(FernZip *z, const char *name, uint8_t **keep, int *w, int
     return t;
 }
 
+static const struct {
+    uint8_t type;
+    const char *file;
+} mob_files[] = {
+    {50, "mob/creeper.png"}, {51, "mob/skeleton.png"}, {52, "mob/spider.png"}, {54, "mob/zombie.png"},
+    {55, "mob/slime.png"},  {57, "mob/pigzombie.png"}, {90, "mob/pig.png"},   {91, "mob/sheep.png"},
+    {92, "mob/cow.png"},     {93, "mob/chicken.png"},  {94, "mob/squid.png"}, {95, "mob/wolf.png"},
+};
+
 static void unload_textures(FernApp *app) {
     GLuint *t[] = {&app->tex_terrain, &app->tex_gui, &app->tex_items, &app->tex_icons, &app->tex_char};
     unsigned i;
+    if (app->tex_fur) glDeleteTextures(1, &app->tex_fur);
+    app->tex_fur = 0;
+    for (i = 0; i < 256; i++)
+        if (app->tex_mob[i]) {
+            glDeleteTextures(1, &app->tex_mob[i]);
+            app->tex_mob[i] = 0;
+        }
     for (i = 0; i < sizeof(t) / sizeof(t[0]); i++)
         if (*t[i]) {
             glDeleteTextures(1, t[i]);
@@ -229,6 +247,12 @@ static void load_jar(FernApp *app) {
     app->tex_items = load_png(z, "gui/items.png", NULL, NULL, NULL);
     app->tex_icons = load_png(z, "gui/icons.png", NULL, NULL, NULL);
     app->tex_char = load_png(z, "mob/char.png", NULL, NULL, NULL);
+    {
+        unsigned i;
+        for (i = 0; i < sizeof(mob_files) / sizeof(mob_files[0]); i++)
+            app->tex_mob[mob_files[i].type] = load_png(z, mob_files[i].file, NULL, NULL, NULL);
+        app->tex_fur = load_png(z, "mob/sheep_fur.png", NULL, NULL, NULL);
+    }
     {
         GLuint ft = load_png(z, "font/default.png", &font, &fw, &fh);
         if (ft) glDeleteTextures(1, &ft);
@@ -1005,6 +1029,25 @@ static void draw_world(FernApp *app) {
             float walk = moved > 0.01 ? (float)(app->now * 10.0) : 0;
             fern_model_player(&app->models, e->yaw, e->pitch, walk, e->swing > 0 ? e->swing : 0, e->crouch, light);
             fern_terrain_draw_quads(app->terrain, &vp, app->tex_char, ox, oy, oz, app->models.v, app->models.count, &look);
+        } else if (e->kind == ENT_MOB && app->tex_mob[e->type]) {
+            double moved = fabs(e->x - e->px) + fabs(e->z - e->pz);
+            float walk = moved > 0.01 ? (float)(app->now * 8.0) : 0;
+            if (fern_model_mob_beta(&app->models, e->type, e->yaw, e->pitch, walk, light))
+                fern_terrain_draw_quads(app->terrain, &vp, app->tex_mob[e->type], ox, oy, oz, app->models.v,
+                                        app->models.count, &look);
+            // The wool of a sheep that is not sheared (bit 0x10), in the
+            // color of metadata 16, as the wool block colors are.
+            if (e->type == 91 && app->tex_fur && !(e->meta16 & 0x10)) {
+                static const uint8_t wool[16][3] = {
+                    {255, 255, 255}, {235, 136, 66}, {190, 76, 200}, {110, 140, 210}, {200, 190, 40},
+                    {65, 175, 55},   {210, 130, 155}, {65, 65, 65},  {155, 160, 160}, {45, 110, 135},
+                    {125, 60, 180},  {45, 55, 140},   {80, 50, 30},  {55, 75, 30},    {150, 50, 45}, {25, 25, 25}};
+                const uint8_t *w = wool[e->meta16 & 15];
+                app->models.count = 0;
+                fern_model_sheep_fur(&app->models, e->yaw, walk, w[0], w[1], w[2], light);
+                fern_terrain_draw_quads(app->terrain, &vp, app->tex_fur, ox, oy, oz, app->models.v, app->models.count,
+                                        &look);
+            }
         } else if (e->kind == ENT_MOB) {
             // A colored box for each mob kind: creeper, skeleton, spider,
             // zombie, slime, pig, sheep, cow, chicken, squid, wolf.
@@ -1325,6 +1368,54 @@ void fern_app_command(FernApp *app, const char *line) {
         fern_client_hold(&app->client, (int)x);
     } else if (sscanf(line, "shot %1023s", app->shot_path) == 1) {
         // The next frame saves itself to the file.
+    } else if (sscanf(line, "fakemob %f", &x) == 1) {
+        // Put a mob that only this client sees 3 blocks in front of the
+        // camera, for a test of the models.
+        FernClient *c = &app->client;
+        FernEntity *e;
+        float yaw = app->input.yaw * (float)M_PI / 180.0f;
+        int i;
+        for (i = 0; i < FERN_ENTITY_MAX; i++)
+            if (c->ents.e[i].used && c->ents.e[i].id >= 0x7FFF0000) c->ents.e[i].used = 0;
+        e = fern_entity_add(&c->ents, 0x7FFF0000 + (int)x, ENT_MOB);
+        if (e) {
+            double fx = c->body.x - sinf(yaw) * 3, fz = c->body.z + cosf(yaw) * 3;
+            int gy = (int)floor(c->body.y) + 3;
+            // Stand on the top solid block there.
+            while (gy > 0 && !(fern_block_info(FERN_BLOCK(fern_world_get(&c->world, (int)floor(fx), gy - 1,
+                                                                         (int)floor(fz))))->flags & BF_SOLID))
+                gy--;
+            e->type = (uint8_t)x;
+            fern_entity_place(e, (int32_t)(fx * 32), gy * 32, (int32_t)(fz * 32));
+            e->yaw = app->input.yaw + 150.0f;
+        }
+    } else if (!strcmp(line, "lookmob") || !strcmp(line, "lookitem")) {
+        // Turn the camera to the nearest mob or dropped item, for a test.
+        FernClient *c = &app->client;
+        int i, kind = !strcmp(line, "lookmob") ? ENT_MOB : ENT_ITEM;
+        double best = 1e9, bx = 0, by = 0, bz = 0;
+        int type = -1;
+        for (i = 0; i < FERN_ENTITY_MAX; i++) {
+            FernEntity *e = &c->ents.e[i];
+            double dx, dy, dz, d;
+            if (!e->used || e->kind != kind) continue;
+            dx = e->x - c->body.x;
+            dy = e->y + 0.5 - (c->body.y + FERN_EYE_HEIGHT);
+            dz = e->z - c->body.z;
+            d = dx * dx + dy * dy + dz * dz;
+            if (d < best) {
+                best = d;
+                bx = dx;
+                by = dy;
+                bz = dz;
+                type = kind == ENT_MOB ? e->type : e->item;
+            }
+        }
+        if (type >= 0) {
+            app->input.yaw = (float)(atan2(-bx, bz) * 180.0 / M_PI);
+            app->input.pitch = (float)(-atan2(by, sqrt(bx * bx + bz * bz)) * 180.0 / M_PI);
+            fern_log("look: type %d at %.1f blocks", type, sqrt(best));
+        }
     } else if (!strcmp(line, "debug")) {
         app->debug = !app->debug;
     } else if (sscanf(line, "screen %127s", a) == 1) {
