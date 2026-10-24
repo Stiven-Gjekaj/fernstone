@@ -75,3 +75,20 @@ TEST(blocks_hide_the_blocks_that_an_old_version_does_not_have) {
     CHECK_EQ(fern_block_from_wire(3, 87), B_NETHERRACK);
     CHECK_EQ(fern_block_to_wire(6, B_SANDSTONE), -1);
 }
+
+TEST(world_lights_a_block_that_a_change_opens) {
+    FernWorld w;
+    int y;
+    fern_world_init(&w);
+    fern_world_column_make(&w, 0, 0);
+    // A column of stone from 0 to 70, then open sky.
+    for (y = 0; y <= 70; y++) fern_world_set(&w, 4, y, 4, FERN_STATE(B_STONE, 0));
+    CHECK_EQ(fern_world_sky(&w, 4, 70, 4), 0);
+    fern_world_set(&w, 4, 70, 4, 0);
+    CHECK_EQ(fern_world_sky(&w, 4, 70, 4), 15);
+    // A block in a wall gets the light of the open neighbor, less one.
+    fern_world_set(&w, 5, 69, 4, FERN_STATE(B_STONE, 0));
+    fern_world_set(&w, 4, 69, 4, 0);
+    CHECK_EQ(fern_world_sky(&w, 4, 69, 4), 15);
+    fern_world_clear(&w);
+}

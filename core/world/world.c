@@ -114,6 +114,23 @@ void fern_world_set(FernWorld *w, int x, int y, int z, FernState st) {
     if (s->state[i] == 0 && st != 0) s->solid++;
     if (s->state[i] != 0 && st == 0) s->solid--;
     s->state[i] = st;
+    // The server sends no light change. Give a block that the change opens
+    // the light of its neighbors, as the client of Beta does in short form:
+    // full sky light under open sky, else the brightest neighbor less one.
+    if (!(fern_block_info(FERN_BLOCK(st))->flags & BF_OPAQUE)) {
+        static const int d[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+        int k, sky = 0, blk = fern_block_info(FERN_BLOCK(st))->light;
+        for (k = 0; k < 6; k++) {
+            int ns = fern_world_sky(w, x + d[k][0], y + d[k][1], z + d[k][2]);
+            int nb = fern_world_light(w, x + d[k][0], y + d[k][1], z + d[k][2]);
+            if (k == 2 && ns == 15) ns = 16;
+            if (ns - 1 > sky) sky = ns - 1;
+            if (nb - 1 > blk) blk = nb - 1;
+        }
+        s->light[i] = (uint8_t)(sky << 4 | blk);
+    } else {
+        s->light[i] = 0;
+    }
     fern_world_mark(w, x, y, z);
 }
 
