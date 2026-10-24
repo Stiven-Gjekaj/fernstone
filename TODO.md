@@ -61,12 +61,20 @@ milestone.
 - Fix the use of blocks and the breaking of blocks. (Done: a finger aims,
   the cracks show, and the client closes the windows of the server.)
 
+## 1.2: the rest of the game of Beta
+
+- Draw the mobs with the models and the textures of Beta. (Done.)
+- Draw the dropped items that are not blocks. (Done.)
+- Move the water and the lava with the texture simulation of Beta. (Done.)
+- Add the inventory screen and the container screens. (Done: checked on
+  Poseidon on the Mac and on the 4S.)
+- Spread the light again after a block change. (Done.)
+
 ## Known problems
 
-- A mob is a colored box. A dropped item that is not a block is not drawn.
-- The water and the lava do not move. The texture of the jar is a still
-  frame.
-- There is no inventory screen. The hotbar shows the items that the server
-  gives.
-- The light does not change when a block changes. The server sends new
-  light only with a new chunk.
+- b1.1_02 and the Alpha versions before a1.1.2_01 are not tested on real
+  servers. Uberbukkit does not speak those layouts, and no trusted server
+  jar of those versions is in the repository.
+- The iPhone 15 Pro Max in LiveContainer is not tested yet.
+- A window has no shift click. A click with the left or the right button
+  only.

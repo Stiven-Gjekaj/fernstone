@@ -12,8 +12,17 @@ The menus and the touch controls look like those of Pocket Edition.
   are bigger on a touch screen.
 - A finger aims: a hold breaks the block under the finger, and a tap
   places on it. Cracks show while a block breaks.
-- The client closes each chest, furnace, or workbench window that the
-  server opens, because there is no inventory screen yet.
+- The mobs have the box models and the textures of Beta. A sheep shows
+  its wool in its color.
+- A dropped item that is not a block shows as a flat sprite.
+- The water and the lava move, with the texture simulation of Beta at 20
+  ticks a second.
+- The inventory screen (E on the Mac, the "..." button on a phone) and the
+  chest, workbench, furnace, and dispenser screens. A click moves the
+  items with the rules of Beta, and the server confirms each click.
+- The sky light and the block light spread again after each block change.
+  A torch lights the blocks around it, and a new roof makes a shadow.
+- The debug screen shows the light at the feet of the player.
 - The delete key removes the characters of a text field on iOS 6.
   Checked in the iOS 27 simulator. Not checked on the 4S yet.
 
