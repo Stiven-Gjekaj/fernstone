@@ -90,7 +90,11 @@ void fern_client_chat(FernClient *c, const char *text) {
 void fern_client_hold(FernClient *c, int slot) {
     if (slot < 0 || slot > 8) return;
     c->held = slot;
-    if (c->state == CLIENT_PLAY) fern_send_hold(&c->out, c->v, slot);
+    if (c->state != CLIENT_PLAY) return;
+    if (c->v->wire <= 6)
+        fern_send_hold_item(&c->out, c->v, c->self_id, c->inv[36 + slot].id);
+    else
+        fern_send_hold(&c->out, c->v, slot);
 }
 
 void fern_client_respawn(FernClient *c) {
@@ -130,6 +134,13 @@ static void handle(FernClient *c, const FernPacket *p) {
         c->world.time = p->u.time.time;
         break;
     case 0x05:
+        if (c->v->wire <= 6) {
+            // Alpha: the main inventory (-1) has the hotbar in slots 0 to 8.
+            int i;
+            if (p->u.alpha_inv.type != -1) break;
+            for (i = 0; i < p->u.alpha_inv.count && i < 36; i++) c->inv[i < 9 ? 36 + i : i] = p->u.alpha_inv.items[i];
+            break;
+        }
         e = fern_entity_get(&c->ents, p->u.equipment.entity);
         if (e && p->u.equipment.slot == 0) e->item = p->u.equipment.item;
         break;
@@ -261,7 +272,16 @@ static void read_packets(FernClient *c) {
     while (c->state != CLIENT_GONE) {
         FernPacket p;
         size_t used = 0;
-        FernDecode d = fern_packet_decode(c->v, c->net.in + pos, c->net.in_len - pos, &p, &used);
+        FernDecode d;
+        // A kick before the login has modified UTF-8 in each version,
+        // because the server does not know the protocol yet.
+        if (c->state == CLIENT_HANDSHAKE && c->net.in_len > pos && c->net.in[pos] == 0xFF && c->v->str16) {
+            FernVersion old = *c->v;
+            old.str16 = 0;
+            d = fern_packet_decode(&old, c->net.in + pos, c->net.in_len - pos, &p, &used);
+        } else {
+            d = fern_packet_decode(c->v, c->net.in + pos, c->net.in_len - pos, &p, &used);
+        }
         if (d == FERN_DECODE_MORE) break;
         if (d == FERN_DECODE_BAD) {
             char why[64];
@@ -325,8 +345,12 @@ static void tick_actions(FernClient *c, const FernInput *in) {
         }
         c->dig_done += fern_dig_speed(block, item);
         if ((c->ticks & 3) == 0) fern_send_animation(&c->out, c->v, c->self_id, 1);
+        // Before layout 9, the client sends status 1 while it digs, and
+        // status 3 when the block breaks.
+        if (c->v->wire <= 8 && c->dig_done < 1.0f)
+            fern_send_dig(&c->out, c->v, 1, c->dig_x, c->dig_y, c->dig_z, c->dig_face);
         if (c->dig_done >= 1.0f) {
-            fern_send_dig(&c->out, c->v, 2, c->dig_x, c->dig_y, c->dig_z, c->dig_face);
+            fern_send_dig(&c->out, c->v, c->v->wire <= 8 ? 3 : 2, c->dig_x, c->dig_y, c->dig_z, c->dig_face);
             fern_world_set(&c->world, c->dig_x, c->dig_y, c->dig_z, 0);
             stop_dig(c);
             c->use_cooldown = 5;
