@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include "client.h"
 #include "draw2d.h"
+#include "fern_version.h"
 #include "gfx.h"
 #include "log.h"
 #include "model.h"
@@ -253,7 +254,7 @@ FernApp *fern_app_new(const FernAppConfig *config) {
     snprintf(jars, sizeof(jars), "%s/jars", app->data_dir);
     mkdir(jars, 0755);
     fern_log_open(app->data_dir);
-    fern_log("fernstone: start on %s, %.0f MB", config->platform, config->ram_mb);
+    fern_log("fernstone %s: start on %s, %.0f MB", FERN_APP_VERSION, config->platform, config->ram_mb);
     options_load(app);
     fern_client_init(&app->client);
     fern_net_init(&app->probe_net);
@@ -567,7 +568,7 @@ static void draw_menu(FernApp *app) {
             snprintf(app->import_version, sizeof(app->import_version), "%s", app->opt.version);
         }
     }
-    text(app, "Fernstone 0.4", 2, gh(app) - 10, FERN_RGBA(120, 120, 120, 255));
+    text(app, "Fernstone " FERN_APP_VERSION, 2, gh(app) - 10, FERN_RGBA(120, 120, 120, 255));
 }
 
 static void draw_measure(FernApp *app) {
