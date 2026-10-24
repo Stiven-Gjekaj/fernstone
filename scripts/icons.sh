@@ -10,6 +10,8 @@ clang -fobjc-arc -Wall "$ROOT/tools/brand.m" -framework Foundation -framework Co
     -framework UniformTypeIdentifiers -o "$ROOT/build/brand/brand"
 "$ROOT/build/brand/brand" "$ROOT/build/brand" >/dev/null
 cp "$ROOT/build/brand/logo.png" "$ROOT/build/brand/banner.png" "$ROOT/assets/brand/"
+# The icon of the SideStore source.
+sips -z 512 512 "$ROOT/build/brand/icon-1024.png" --out "$ROOT/assets/brand/icon-512.png" >/dev/null
 # iOS 6: the gloss is in the art, so iOS adds no gloss (UIPrerenderedIcon).
 sips -z 57 57 "$ROOT/build/brand/icon-ios6.png" --out "$ROOT/resources/Icon.png" >/dev/null
 cp "$ROOT/build/brand/icon-ios6.png" "$ROOT/resources/Icon@2x.png"
