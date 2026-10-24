@@ -4,6 +4,7 @@
 #include <string.h>
 #include "chunk.h"
 #include "dig.h"
+#include "inventory.h"
 #include "log.h"
 
 #define TICK (1.0 / 20.0)
@@ -44,6 +45,9 @@ static void reset_game(FernClient *c) {
     c->spawned = 0;
     c->digging = 0;
     for (i = 0; i < 45; i++) c->inv[i].id = -1;
+    c->win_open = 0;
+    c->win_id = 0;
+    c->cursor.id = -1;
 }
 
 void fern_client_connect(FernClient *c, const FernVersion *v, const char *host, int port, const char *name) {
@@ -103,8 +107,60 @@ void fern_client_respawn(FernClient *c) {
 
 static void set_items(FernClient *c, const FernPacket *p) {
     int i;
-    if (p->u.items.window != 0) return;
-    for (i = 0; i < p->u.items.count && i < 45; i++) c->inv[i] = p->u.items.items[i];
+    if (p->u.items.window == 0) {
+        for (i = 0; i < p->u.items.count && i < 45; i++) c->inv[i] = p->u.items.items[i];
+    } else if (c->win_open && p->u.items.window == c->win_id) {
+        for (i = 0; i < p->u.items.count && i < 100; i++) c->win_items[i] = p->u.items.items[i];
+    }
+}
+
+void fern_client_open_inventory(FernClient *c) {
+    if (c->state != CLIENT_PLAY) return;
+    c->win_open = 1;
+    c->win_id = 0;
+    c->win_type = -1;
+    c->win_slots = 0;
+}
+
+void fern_client_close_window(FernClient *c) {
+    if (!c->win_open) return;
+    if (c->state == CLIENT_PLAY) fern_send_close_window(&c->out, c->v, c->win_id);
+    c->win_open = 0;
+    c->win_id = 0;
+    // The server drops the item on the cursor.
+    c->cursor.id = -1;
+}
+
+int fern_client_window_size(const FernClient *c) {
+    if (!c->win_open) return 0;
+    if (c->win_id == 0) return 45;
+    return c->win_slots + 36;
+}
+
+FernItem *fern_client_window_slot(FernClient *c, int slot) {
+    if (slot < 0 || slot >= fern_client_window_size(c)) return NULL;
+    if (c->win_id == 0) return &c->inv[slot];
+    return &c->win_items[slot];
+}
+
+// The output slot of a window: the crafting result, or the furnace output.
+static int is_output(const FernClient *c, int slot) {
+    if (c->win_id == 0) return slot == 0;
+    if (c->win_type == 1) return slot == 0;
+    if (c->win_type == 2) return slot == 2;
+    return 0;
+}
+
+void fern_client_click(FernClient *c, int slot, int right) {
+    FernItem *it = fern_client_window_slot(c, slot), before;
+    if (!it || c->state != CLIENT_PLAY) return;
+    before = *it;
+    c->action++;
+    fern_send_window_click(&c->out, c->v, c->win_id, slot, right, c->action, 0, &before);
+    fern_inv_click(it, &c->cursor, right, is_output(c, slot));
+    // The 36 slots of the player in a container are the slots of window 0
+    // too, so keep them the same.
+    if (c->win_id != 0 && slot >= c->win_slots) c->inv[9 + (slot - c->win_slots)] = *it;
 }
 
 static void handle(FernClient *c, const FernPacket *p) {
@@ -259,15 +315,43 @@ static void handle(FernClient *c, const FernPacket *p) {
         }
         break;
     }
-    case 0x64:
-        // There is no screen for a chest, a furnace, or a workbench yet.
-        // Close the window at once, so that the server does not wait.
-        fern_send_close_window(&c->out, c->v, p->u.open_window.window);
-        add_chat(c, "\xC2\xA7" "7Fernstone has no inventory screen yet.");
+    case 0x64: {
+        // A chest, a workbench, a furnace, or a dispenser opens. Its slots
+        // come in 0x68. The 36 slots of the player follow them.
+        int i;
+        c->win_open = 1;
+        c->win_id = p->u.open_window.window;
+        c->win_type = p->u.open_window.type;
+        c->win_slots = p->u.open_window.slots;
+        snprintf(c->win_title, sizeof(c->win_title), "%s", p->u.open_window.title);
+        for (i = 0; i < 100; i++) c->win_items[i].id = -1;
+        memset(c->win_progress, 0, sizeof(c->win_progress));
+        break;
+    }
+    case 0x65:
+        // The server closed the window, for example when the chest breaks.
+        c->win_open = 0;
+        c->win_id = 0;
         break;
     case 0x67:
-        if (p->u.set_slot.window == 0 && p->u.set_slot.slot >= 0 && p->u.set_slot.slot < 45)
+        if (p->u.set_slot.window == -1 && p->u.set_slot.slot == -1) {
+            c->cursor = p->u.set_slot.item;
+        } else if (p->u.set_slot.window == 0 && p->u.set_slot.slot >= 0 && p->u.set_slot.slot < 45) {
             c->inv[p->u.set_slot.slot] = p->u.set_slot.item;
+        } else if (c->win_open && p->u.set_slot.window == c->win_id && p->u.set_slot.slot >= 0 &&
+                   p->u.set_slot.slot < 100) {
+            c->win_items[p->u.set_slot.slot] = p->u.set_slot.item;
+        }
+        break;
+    case 0x69:
+        if (c->win_open && p->u.progress.window == c->win_id && p->u.progress.bar >= 0 && p->u.progress.bar < 4)
+            c->win_progress[p->u.progress.bar] = p->u.progress.value;
+        break;
+    case 0x6A:
+        // The server refused a click. Say that the client knows it, as Beta
+        // does. The server then sends the true slots.
+        if (!p->u.transaction.accepted)
+            fern_send_transaction(&c->out, c->v, p->u.transaction.window, p->u.transaction.action, 1);
         break;
     case 0x68:
         set_items(c, p);

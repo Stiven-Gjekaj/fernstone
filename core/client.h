@@ -56,6 +56,18 @@ typedef struct {
     FernItem inv[45];       // Window 0: 36 to 44 is the hotbar.
     int held;               // 0 to 8
 
+    // The open window: 0 is the inventory of the player. win_type is -1
+    // for the player inventory, or 0 chest, 1 workbench, 2 furnace,
+    // 3 dispenser. win_items holds the container slots and then the 36
+    // slots of the player.
+    int win_open;
+    int win_id, win_type, win_slots;
+    char win_title[64];
+    FernItem win_items[100];
+    int win_progress[4];
+    FernItem cursor;
+    int action;
+
     FernChatLine chat[FERN_CHAT_LINES];
     int chat_count;         // The lines in the ring, up to FERN_CHAT_LINES.
     int chat_head;          // The next line to write.
@@ -85,6 +97,14 @@ void fern_client_update(FernClient *c, const FernInput *in, double now);
 void fern_client_chat(FernClient *c, const char *text);
 void fern_client_hold(FernClient *c, int slot);
 void fern_client_respawn(FernClient *c);
+// Open the inventory of the player (window 0). Close the open window.
+void fern_client_open_inventory(FernClient *c);
+void fern_client_close_window(FernClient *c);
+// Click a slot of the open window (the numbering of the server).
+void fern_client_click(FernClient *c, int slot, int right);
+// The number of slots of the open window, and the item of a slot.
+int fern_client_window_size(const FernClient *c);
+FernItem *fern_client_window_slot(FernClient *c, int slot);
 void fern_client_disconnect(FernClient *c, const char *reason);
 // The chat line i, from 0 (the newest) up. NULL if there is none.
 const FernChatLine *fern_client_chat_line(const FernClient *c, int i);
