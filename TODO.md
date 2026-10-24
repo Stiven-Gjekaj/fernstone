@@ -51,7 +51,7 @@ milestone.
 - Test b1.1_02 on a real b1.1_02 server, and the Alpha versions before
   a1.1.2_01 on real servers.
 
-## 1.1: the style of Pocket Edition
+## 1.1: the style of Pocket Edition and the rest of Beta (released, 2026-10-24)
 
 - Make the UI again in the style of Minecraft Pocket Edition. (Done.)
 - Fix the name field on the iPhone 4S: the delete key does not remove the
@@ -59,10 +59,7 @@ milestone.
 - Make the main menus again: put the text in the middle, and use the style
   of the Minecraft splash art. (Done.)
 - Fix the use of blocks and the breaking of blocks. (Done: a finger aims,
-  the cracks show, and the client closes the windows of the server.)
-
-## 1.2: the rest of the game of Beta
-
+  and the cracks show.)
 - Draw the mobs with the models and the textures of Beta. (Done.)
 - Draw the dropped items that are not blocks. (Done.)
 - Move the water and the lava with the texture simulation of Beta. (Done.)

@@ -1,8 +1,10 @@
 # Changelog
 
-## 1.1.0 (not released)
+## 1.1.0 (2026-10-24)
 
-The menus and the touch controls look like those of Pocket Edition.
+The menus and the touch controls look like those of Pocket Edition. The
+mobs, the dropped items, the moving liquids, the inventory, and the light
+work as in Beta.
 
 - The title screen: the name in cobblestone letters, a turned splash text,
   a strip of moving terrain, and the text in the middle. The join and the
