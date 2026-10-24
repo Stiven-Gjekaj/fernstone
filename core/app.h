@@ -18,7 +18,7 @@ typedef struct {
 typedef enum {
     FK_NONE, FK_FORWARD, FK_BACK, FK_LEFT, FK_RIGHT, FK_JUMP, FK_SNEAK,
     FK_CHAT, FK_COMMAND, FK_ESCAPE, FK_ENTER, FK_BACKSPACE, FK_TAB, FK_UP, FK_DOWN,
-    FK_DEBUG, FK_1, FK_2, FK_3, FK_4, FK_5, FK_6, FK_7, FK_8, FK_9,
+    FK_DEBUG, FK_INVENTORY, FK_1, FK_2, FK_3, FK_4, FK_5, FK_6, FK_7, FK_8, FK_9,
     FK_COUNT
 } FernKey;
 
@@ -56,7 +56,8 @@ const char *fern_app_data_dir(FernApp *app);
 void fern_app_probe(FernApp *app, const char *host, int port, const char *name);
 // Run a command, for a test or a debug build: "connect HOST NAME",
 // "say TEXT", "walk F S", "look YAW PITCH", "attack 0|1", "use", "hold N",
-// "screen NAME".
+// "screen NAME", "inventory", "click SLOT RIGHT", "closewin", and the test
+// commands "fakemob TYPE", "fakeitem ID", "lookmob", and "shot FILE".
 void fern_app_command(FernApp *app, const char *line);
 void fern_app_free(FernApp *app);
 

@@ -9,6 +9,7 @@
 #include "client.h"
 #include "draw2d.h"
 #include "fx.h"
+#include "inventory.h"
 #include "fern_version.h"
 #include "gfx.h"
 #include "log.h"
@@ -68,6 +69,8 @@ struct FernApp {
     GLuint tex_terrain, tex_gui, tex_items, tex_icons, tex_char, tex_white;
     GLuint tex_mob[256];      // The texture of each mob type, from the jar.
     GLuint tex_fur;           // The wool of a sheep.
+    GLuint tex_win[5];        // inventory, container, crafting, furnace, trap
+    float mouse_x, mouse_y;   // The last pointer position, in pixels.
     FernFx fx_water, fx_lava; // The moving textures, in tiles 205 and 237.
     double fx_time;
     int have_jar;
@@ -216,6 +219,11 @@ static void unload_textures(FernApp *app) {
     unsigned i;
     if (app->tex_fur) glDeleteTextures(1, &app->tex_fur);
     app->tex_fur = 0;
+    for (i = 0; i < 5; i++)
+        if (app->tex_win[i]) {
+            glDeleteTextures(1, &app->tex_win[i]);
+            app->tex_win[i] = 0;
+        }
     for (i = 0; i < 256; i++)
         if (app->tex_mob[i]) {
             glDeleteTextures(1, &app->tex_mob[i]);
@@ -255,6 +263,11 @@ static void load_jar(FernApp *app) {
         for (i = 0; i < sizeof(mob_files) / sizeof(mob_files[0]); i++)
             app->tex_mob[mob_files[i].type] = load_png(z, mob_files[i].file, NULL, NULL, NULL);
         app->tex_fur = load_png(z, "mob/sheep_fur.png", NULL, NULL, NULL);
+        app->tex_win[0] = load_png(z, "gui/inventory.png", NULL, NULL, NULL);
+        app->tex_win[1] = load_png(z, "gui/container.png", NULL, NULL, NULL);
+        app->tex_win[2] = load_png(z, "gui/crafting.png", NULL, NULL, NULL);
+        app->tex_win[3] = load_png(z, "gui/furnace.png", NULL, NULL, NULL);
+        app->tex_win[4] = load_png(z, "gui/trap.png", NULL, NULL, NULL);
     }
     {
         GLuint ft = load_png(z, "font/default.png", &font, &fw, &fh);
@@ -440,6 +453,9 @@ void fern_app_key(FernApp *app, FernKey key, int down) {
     case SCREEN_GAME:
         if (key == FK_CHAT) open_chat(app, "");
         else if (key == FK_COMMAND) open_chat(app, "/");
+        else if (key == FK_ESCAPE && app->client.win_open) fern_client_close_window(&app->client);
+        else if (key == FK_INVENTORY && app->client.win_open) fern_client_close_window(&app->client);
+        else if (key == FK_INVENTORY) fern_client_open_inventory(&app->client);
         else if (key == FK_ESCAPE) app->screen = SCREEN_PAUSE;
         else if (key == FK_DEBUG) app->debug = !app->debug;
         else if (key >= FK_1 && key <= FK_9) fern_client_hold(&app->client, key - FK_1);
@@ -483,7 +499,8 @@ void fern_app_wheel(FernApp *app, int steps) {
 }
 
 int fern_app_wants_capture(FernApp *app) {
-    return app->screen == SCREEN_GAME && !app->chat_open && !app->config.touch && app->client.health > 0;
+    return app->screen == SCREEN_GAME && !app->chat_open && !app->config.touch && app->client.health > 0 &&
+           !app->client.win_open;
 }
 
 int fern_app_wants_keyboard(FernApp *app) {
@@ -496,6 +513,7 @@ int fern_app_wants_keyboard(FernApp *app) {
 // pointer that went up this frame.
 typedef struct {
     int clicked;
+    int right;      // The right button, or a long press on a touch screen.
     float x, y;
 } Click;
 
@@ -977,6 +995,12 @@ static void draw_touch_controls(FernApp *app) {
     pad_button(app, w - 8 - JUMP_SIZE, h - 8 - JUMP_SIZE, JUMP_SIZE, app->touch_jump);
     arrow(app, w - 8 - JUMP_SIZE, h - 8 - JUMP_SIZE - 3, JUMP_SIZE, 0);
     arrow(app, w - 8 - JUMP_SIZE, h - 8 - JUMP_SIZE + 5, JUMP_SIZE, 0);
+    // The inventory: a button with three dots after the hotbar, as Pocket
+    // Edition has.
+    pad_button(app, w / 2 + 92, h - 22, 22, 0);
+    rect(app, w / 2 + 97, h - 12, 3, 3, 0xFFFFFFE0);
+    rect(app, w / 2 + 102, h - 12, 3, 3, 0xFFFFFFE0);
+    rect(app, w / 2 + 107, h - 12, 3, 3, 0xFFFFFFE0);
     // Pause: two bars. Chat: a speech box.
     pad_button(app, w - 24, 4, 20, 0);
     rect(app, w - 18, 9, 3, 10, 0xFFFFFFE0);
@@ -1201,8 +1225,11 @@ static void aim_at(FernApp *app, float x, float y) {
 void fern_app_pointer(FernApp *app, int id, int phase, float x, float y) {
     Touch *t;
     float gx = x / app->ui, gy = y / app->ui, w = gw(app), h = gh(app);
-    // On the death screen, a touch goes to the buttons.
-    int game = app->screen == SCREEN_GAME && !app->chat_open && app->client.health > 0 && app->config.touch;
+    // On the death screen and in a window, a touch goes to the buttons.
+    int game = app->screen == SCREEN_GAME && !app->chat_open && app->client.health > 0 && app->config.touch &&
+               !app->client.win_open;
+    app->mouse_x = x;
+    app->mouse_y = y;
     if (phase == FERN_POINTER_DOWN) {
         int i, cell;
         for (i = 0; i < MAX_TOUCHES && app->touch[i].id >= 0; i++) {}
@@ -1231,9 +1258,14 @@ void fern_app_pointer(FernApp *app, int id, int phase, float x, float y) {
         } else if (gx > w - 48 && gx < w - 24 && gy < 24) {
             t->kind = TOUCH_BUTTON;
             open_chat(app, "");
+        } else if (gy > h - 24 && gx >= w / 2 + 92 && gx < w / 2 + 114) {
+            // The button after the hotbar opens the inventory.
+            t->kind = TOUCH_BUTTON;
+            fern_client_open_inventory(&app->client);
         } else if (gy > h - 24 && fabsf(gx - w / 2) < 91) {
             t->kind = TOUCH_BUTTON;
             pending_click.clicked = 1;
+            pending_click.right = 0;
             pending_click.x = x;
             pending_click.y = y;
         }
@@ -1266,6 +1298,9 @@ void fern_app_pointer(FernApp *app, int id, int phase, float x, float y) {
             }
         } else {
             pending_click.clicked = 1;
+            // On a touch screen, a long press is the right button. The Mac
+            // sends its right button as pointer 1.
+            pending_click.right = id == 1 || (app->config.touch && app->now - t->t0 > 0.4);
             pending_click.x = x;
             pending_click.y = y;
         }
@@ -1293,7 +1328,7 @@ static void update_touch(FernApp *app) {
 
 static void update_game_input(FernApp *app) {
     FernInput *in = &app->input;
-    if (app->chat_open) {
+    if (app->chat_open || app->client.win_open) {
         in->forward = in->strafe = 0;
         in->jump = in->sneak = 0;
         in->attack = 0;
@@ -1315,6 +1350,111 @@ static void update_game_input(FernApp *app) {
         // Without a finger on the world, nothing is aimed at.
         if (!app->touch_attack && !in->use) in->aim = 0;
     }
+}
+
+/* ---- the windows: the inventory, a chest, a workbench, a furnace ---- */
+
+// The height of the background of a window, in its texture.
+static int window_height(const FernClient *c) {
+    if (c->win_id != 0 && c->win_type == 0) return 114 + (c->win_slots / 9) * 18;
+    return 166;
+}
+
+// The position of a slot in a window, from the GUI classes of Beta.
+static int slot_pos(const FernClient *c, int i, int *x, int *y) {
+    int n = c->win_slots, j, rows = n / 9, below = 84;
+    if (c->win_id == 0) {
+        if (i == 0) { *x = 144; *y = 36; }
+        else if (i <= 4) { *x = 88 + ((i - 1) % 2) * 18; *y = 26 + ((i - 1) / 2) * 18; }
+        else if (i <= 8) { *x = 8; *y = 8 + (i - 5) * 18; }
+        else if (i <= 35) { *x = 8 + ((i - 9) % 9) * 18; *y = 84 + ((i - 9) / 9) * 18; }
+        else if (i <= 44) { *x = 8 + (i - 36) * 18; *y = 142; }
+        else return 0;
+        return 1;
+    }
+    if (i < n) {
+        switch (c->win_type) {
+        case 0: *x = 8 + (i % 9) * 18; *y = 18 + (i / 9) * 18; break;
+        case 1:
+            if (i == 0) { *x = 124; *y = 35; }
+            else { *x = 30 + ((i - 1) % 3) * 18; *y = 17 + ((i - 1) / 3) * 18; }
+            break;
+        case 2:
+            *x = i == 2 ? 116 : 56;
+            *y = i == 0 ? 17 : i == 1 ? 53 : 35;
+            break;
+        default: *x = 62 + (i % 3) * 18; *y = 17 + (i / 3) * 18; break;
+        }
+        return 1;
+    }
+    j = i - n;
+    if (c->win_type == 0) below = 103 + (rows - 4) * 18;
+    if (j < 27) { *x = 8 + (j % 9) * 18; *y = below + (j / 9) * 18; }
+    else if (j < 36) { *x = 8 + (j - 27) * 18; *y = below + 58; }
+    else return 0;
+    return 1;
+}
+
+static void draw_window(FernApp *app) {
+    FernClient *c = &app->client;
+    float u = app->ui, h = (float)window_height(c);
+    float x0 = floorf(gw(app) / 2 - 88), y0 = floorf(gh(app) / 2 - h / 2);
+    int i, n = fern_client_window_size(c), tex_i, hover = -1;
+    GLuint tex;
+    if (y0 < 0) y0 = 0;
+    tex_i = c->win_id == 0 ? 0 : c->win_type == 0 ? 1 : c->win_type == 1 ? 2 : c->win_type == 2 ? 3 : 4;
+    tex = app->tex_win[tex_i];
+    rect(app, 0, 0, gw(app), gh(app), FERN_RGBA(0, 0, 0, 110));
+    if (tex) {
+        if (tex_i == 1) {
+            float top = (c->win_slots / 9) * 18 + 17;
+            fern_d2_image(app->d2, tex, x0 * u, y0 * u, 176 * u, top * u, 0, 0, 176.0f / 256, top / 256, 0xFFFFFFFF);
+            fern_d2_image(app->d2, tex, x0 * u, (y0 + top) * u, 176 * u, 96 * u, 0, 126.0f / 256, 176.0f / 256,
+                          222.0f / 256, 0xFFFFFFFF);
+        } else {
+            fern_d2_image(app->d2, tex, x0 * u, y0 * u, 176 * u, h * u, 0, 0, 176.0f / 256, h / 256, 0xFFFFFFFF);
+        }
+    } else {
+        rect(app, x0, y0, 176, h, FERN_RGBA(198, 198, 198, 255));
+    }
+    if (c->win_id != 0)
+        text(app, c->win_title, x0 + 8, y0 + 6, FERN_RGBA(64, 64, 64, 255));
+    else
+        text(app, "Crafting", x0 + 86, y0 + 16, FERN_RGBA(64, 64, 64, 255));
+    // The progress of a furnace: the arrow and the flame.
+    if (tex && c->win_type == 2 && c->win_id != 0) {
+        float arrow = c->win_progress[0] * 24.0f / 200.0f;
+        float flame = c->win_progress[2] > 0 ? 12.0f * c->win_progress[1] / c->win_progress[2] : 0;
+        if (arrow > 0)
+            fern_d2_image(app->d2, tex, (x0 + 79) * u, (y0 + 34) * u, arrow * u, 17 * u, 176.0f / 256, 14.0f / 256,
+                          (176 + arrow) / 256, 31.0f / 256, 0xFFFFFFFF);
+        if (flame > 0)
+            fern_d2_image(app->d2, tex, (x0 + 56) * u, (y0 + 36 + 12 - flame) * u, 14 * u, flame * u, 176.0f / 256,
+                          (12 - flame) / 256, 190.0f / 256, 12.0f / 256, 0xFFFFFFFF);
+    }
+    for (i = 0; i < n; i++) {
+        int sx, sy;
+        FernItem *it = fern_client_window_slot(c, i);
+        if (!it || !slot_pos(c, i, &sx, &sy)) continue;
+        if (app->mouse_x >= (x0 + sx) * u && app->mouse_x < (x0 + sx + 16) * u && app->mouse_y >= (y0 + sy) * u &&
+            app->mouse_y < (y0 + sy + 16) * u) {
+            hover = i;
+            if (!app->config.touch) rect(app, x0 + sx, y0 + sy, 16, 16, FERN_RGBA(255, 255, 255, 80));
+        }
+        if (it->id > 0) draw_item(app, it, x0 + sx, y0 + sy);
+        if (pending_click.clicked && hit(app, x0 + sx - 1, y0 + sy - 1, 18, 18)) fern_client_click(c, i, pending_click.right);
+    }
+    (void)hover;
+    // A click outside the window closes it.
+    if (pending_click.clicked) {
+        float px = pending_click.x / u, py = pending_click.y / u;
+        if (px < x0 || px > x0 + 176 || py < y0 || py > y0 + h) {
+            pending_click.clicked = 0;
+            fern_client_close_window(c);
+        }
+    }
+    // The item on the cursor follows the pointer.
+    if (c->cursor.id > 0) draw_item(app, &c->cursor, app->mouse_x / u - 8, app->mouse_y / u - 8);
 }
 
 static void draw_pause(FernApp *app) {
@@ -1437,6 +1577,12 @@ void fern_app_command(FernApp *app, const char *line) {
             app->input.pitch = (float)(-atan2(by, sqrt(bx * bx + bz * bz)) * 180.0 / M_PI);
             fern_log("look: type %d at %.1f blocks", type, sqrt(best));
         }
+    } else if (!strcmp(line, "inventory")) {
+        fern_client_open_inventory(&app->client);
+    } else if (!strcmp(line, "closewin")) {
+        fern_client_close_window(&app->client);
+    } else if (sscanf(line, "click %f %f", &x, &y) == 2) {
+        fern_client_click(&app->client, (int)x, (int)y);
     } else if (!strcmp(line, "debug")) {
         app->debug = !app->debug;
     } else if (sscanf(line, "screen %127s", a) == 1) {
@@ -1494,7 +1640,8 @@ void fern_app_frame(FernApp *app, double now) {
     case SCREEN_VERSIONS: draw_versions(app); break;
     case SCREEN_GAME:
         draw_hud(app);
-        if (app->config.touch && !app->chat_open) draw_touch_controls(app);
+        if (app->client.win_open) draw_window(app);
+        else if (app->config.touch && !app->chat_open) draw_touch_controls(app);
         break;
     case SCREEN_PAUSE:
         draw_hud(app);
