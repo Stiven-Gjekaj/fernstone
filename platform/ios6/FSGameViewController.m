@@ -19,16 +19,14 @@ static NSString *const kDataDir = @"/var/mobile/Media/Fernstone";
 @end
 
 // A text field that the user does not see. It brings up the keyboard and
-// sends each key to the core.
+// sends each key to the core. It always holds one space, so that the delete
+// key changes its text and the delegate sees the delete. iOS 6 does not
+// send deleteBackward to a text field.
 @interface FSKeyField : UITextField
 @property (nonatomic) FernApp *app;
 @end
 
 @implementation FSKeyField
-- (void)deleteBackward {
-    fern_app_key(self.app, FK_BACKSPACE, 1);
-    fern_app_key(self.app, FK_BACKSPACE, 0);
-}
 @end
 
 @interface FSGameViewController () <UITextFieldDelegate>
@@ -139,7 +137,14 @@ static NSString *const kDataDir = @"/var/mobile/Media/Fernstone";
 }
 
 - (BOOL)textField:(UITextField *)field shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)s {
-    if (s.length) fern_app_text(_app, s.UTF8String);
+    if (s.length) {
+        fern_app_text(_app, s.UTF8String);
+    } else if (range.length > 0) {
+        fern_app_key(_app, FK_BACKSPACE, 1);
+        fern_app_key(_app, FK_BACKSPACE, 0);
+    }
+    // Keep the one space, so that the next delete comes here too.
+    field.text = @" ";
     return NO;
 }
 
