@@ -358,8 +358,8 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
         fern_read_bytes(r, 17);
         break;
     case 0x64: // Open window. The title is modified UTF-8 in each version.
-        fern_read_i8(r);
-        fern_read_i8(r);
+        p->u.open_window.window = fern_read_i8(r);
+        p->u.open_window.type = fern_read_i8(r);
         fern_read_str8(r, skip, sizeof(skip));
         fern_read_i8(r);
         break;
@@ -552,4 +552,10 @@ void fern_send_use_entity(FernWriter *w, const FernVersion *v, int self, int tar
 void fern_send_disconnect(FernWriter *w, const FernVersion *v, const char *reason) {
     fern_write_u8(w, 0xFF);
     write_str(w, v, reason);
+}
+
+void fern_send_close_window(FernWriter *w, const FernVersion *v, int window) {
+    (void)v;
+    fern_write_u8(w, 0x65);
+    fern_write_u8(w, (uint8_t)window);
 }

@@ -270,3 +270,24 @@ TEST(packet_reads_old_mob_and_object_spawns) {
     CHECK_EQ(used, w.len);
     fern_writer_free(&w);
 }
+
+TEST(packet_reads_an_open_window_and_writes_a_close) {
+    FernWriter w;
+    FernPacket p;
+    size_t used = 0;
+    fern_writer_init(&w);
+    fern_write_u8(&w, 0x64);
+    fern_write_u8(&w, 3);
+    fern_write_u8(&w, 0);
+    fern_write_str8(&w, "Chest");
+    fern_write_u8(&w, 27);
+    CHECK_EQ(decode(&w, &p, &used), FERN_DECODE_OK);
+    CHECK_EQ(used, w.len);
+    CHECK_EQ(p.u.open_window.window, 3);
+    fern_writer_reset(&w);
+    fern_send_close_window(&w, fern_version_latest(), 3);
+    CHECK_EQ(w.len, 2);
+    CHECK_EQ(w.data[0], 0x65);
+    CHECK_EQ(w.data[1], 3);
+    fern_writer_free(&w);
+}

@@ -91,6 +91,7 @@ typedef struct {
         } explosion;
         struct { int8_t reason; } state;
         struct { int8_t window; int16_t slot; FernItem item; } set_slot;
+        struct { int8_t window; int8_t type; } open_window;
         struct { int8_t window; int16_t count; FernItem items[100]; } items;
         struct { int32_t x, y, z; char lines[4][64]; } sign;
     } u;
@@ -128,5 +129,6 @@ void fern_send_animation(FernWriter *w, const FernVersion *v, int entity, int an
 void fern_send_respawn(FernWriter *w, const FernVersion *v, int dimension);
 void fern_send_use_entity(FernWriter *w, const FernVersion *v, int self, int target, int left);
 void fern_send_disconnect(FernWriter *w, const FernVersion *v, const char *reason);
+void fern_send_close_window(FernWriter *w, const FernVersion *v, int window);
 
 #endif
