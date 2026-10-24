@@ -179,3 +179,94 @@ TEST(packet_reads_the_records_of_an_explosion) {
     CHECK_EQ((int8_t)p.u.explosion.records[2], -1);
     fern_writer_free(&w);
 }
+
+TEST(packet_reads_an_alpha_login_with_two_strings) {
+    FernWriter w;
+    FernPacket p;
+    size_t used = 0;
+    fern_writer_init(&w);
+    fern_write_u8(&w, 0x01);
+    fern_write_i32(&w, 9);
+    fern_write_str8(&w, "");
+    fern_write_str8(&w, "");
+    fern_write_i64(&w, 42);
+    fern_write_u8(&w, 0);
+    CHECK_EQ(fern_packet_decode(fern_version_find("a1.2.6"), w.data, w.len, &p, &used), FERN_DECODE_OK);
+    CHECK_EQ(used, w.len);
+    CHECK_EQ(p.u.login.seed, 42);
+    // Layout 2 stops after the two strings.
+    CHECK_EQ(fern_packet_decode(fern_version_find("a1.1.2_01"), w.data, 1 + 4 + 2 + 2, &p, &used), FERN_DECODE_OK);
+    fern_writer_free(&w);
+}
+
+TEST(packet_writes_an_alpha_login_with_a_password) {
+    FernWriter w;
+    fern_writer_init(&w);
+    fern_send_login(&w, fern_version_find("b1.4_01"), "Ab");
+    // ID, protocol, name, password, seed, dimension: all strings modified UTF-8.
+    CHECK_EQ(w.len, 1 + 4 + (2 + 2) + (2 + 8) + 8 + 1);
+    CHECK_EQ(w.data[4], 10);
+    fern_writer_reset(&w);
+    fern_send_login(&w, fern_version_find("b1.1_02"), "Ab");
+    CHECK_EQ(w.data[4], 8);
+    fern_writer_free(&w);
+}
+
+TEST(packet_reads_an_alpha_inventory_array) {
+    FernWriter w;
+    FernPacket p;
+    size_t used = 0;
+    fern_writer_init(&w);
+    fern_write_u8(&w, 0x05);
+    fern_write_i32(&w, -1);
+    fern_write_i16(&w, 2);
+    fern_write_i16(&w, 4);
+    fern_write_u8(&w, 10);
+    fern_write_i16(&w, 0);
+    fern_write_i16(&w, -1);
+    CHECK_EQ(fern_packet_decode(fern_version_find("a1.2.6"), w.data, w.len, &p, &used), FERN_DECODE_OK);
+    CHECK_EQ(used, w.len);
+    CHECK_EQ(p.u.alpha_inv.type, -1);
+    CHECK_EQ(p.u.alpha_inv.items[0].count, 10);
+    CHECK_EQ(p.u.alpha_inv.items[1].id, -1);
+    fern_writer_free(&w);
+}
+
+TEST(packet_writes_the_item_first_in_an_alpha_place) {
+    FernWriter w;
+    FernItem it = {4, 1, 0};
+    fern_writer_init(&w);
+    fern_send_place(&w, fern_version_find("a1.2.6"), 1, 64, 2, 1, &it);
+    CHECK_EQ(w.len, 1 + 2 + 4 + 1 + 4 + 1);
+    CHECK_EQ(w.data[2], 4);
+    fern_writer_free(&w);
+}
+
+TEST(packet_reads_old_mob_and_object_spawns) {
+    FernWriter w;
+    FernPacket p;
+    size_t used = 0;
+    fern_writer_init(&w);
+    fern_write_u8(&w, 0x18);
+    fern_write_i32(&w, 1);
+    fern_write_u8(&w, 90);
+    fern_write_i32(&w, 0);
+    fern_write_i32(&w, 0);
+    fern_write_i32(&w, 0);
+    fern_write_u8(&w, 0);
+    fern_write_u8(&w, 0);
+    // No metadata before layout 8.
+    CHECK_EQ(fern_packet_decode(fern_version_find("b1.1_01"), w.data, w.len, &p, &used), FERN_DECODE_OK);
+    CHECK_EQ(used, w.len);
+    fern_writer_reset(&w);
+    fern_write_u8(&w, 0x17);
+    fern_write_i32(&w, 1);
+    fern_write_u8(&w, 10);
+    fern_write_i32(&w, 0);
+    fern_write_i32(&w, 0);
+    fern_write_i32(&w, 0);
+    // No thrower before layout 13.
+    CHECK_EQ(fern_packet_decode(fern_version_find("b1.5_01"), w.data, w.len, &p, &used), FERN_DECODE_OK);
+    CHECK_EQ(used, w.len);
+    fern_writer_free(&w);
+}

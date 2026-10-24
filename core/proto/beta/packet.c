@@ -27,6 +27,17 @@ static void read_item(FernReader *r, FernItem *item) {
     }
 }
 
+// An item with a byte damage (layout 7).
+static void read_item_b(FernReader *r, FernItem *item) {
+    item->id = fern_read_i16(r);
+    item->count = 0;
+    item->damage = 0;
+    if (item->id >= 0) {
+        item->count = fern_read_i8(r);
+        item->damage = fern_read_i8(r);
+    }
+}
+
 static void write_item(FernWriter *w, const FernItem *item) {
     if (!item || item->id < 0) {
         fern_write_i16(w, -1);
@@ -86,8 +97,14 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
     case 0x01: // Login
         p->u.login.entity = fern_read_i32(r);
         read_str(r, v, skip, sizeof(skip));
-        p->u.login.seed = fern_read_i64(r);
-        p->u.login.dimension = fern_read_i8(r);
+        p->u.login.seed = 0;
+        p->u.login.dimension = 0;
+        // Before layout 11, a second string follows. Layout 2 stops there.
+        if (v->wire < 11) read_str(r, v, skip, sizeof(skip));
+        if (v->wire >= 3) {
+            p->u.login.seed = fern_read_i64(r);
+            p->u.login.dimension = fern_read_i8(r);
+        }
         break;
     case 0x02: // Handshake
     case 0x03: // Chat
@@ -97,11 +114,22 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
     case 0x04: // Time
         p->u.time.time = fern_read_i64(r);
         break;
-    case 0x05: // Entity equipment
+    case 0x05: // Entity equipment, or an Alpha inventory array
+        if (v->wire <= 6) {
+            FernItem item;
+            p->u.alpha_inv.type = fern_read_i32(r);
+            p->u.alpha_inv.count = fern_read_i16(r);
+            if (p->u.alpha_inv.count < 0) r->bad = 1;
+            for (i = 0; fern_reader_ok(r) && i < p->u.alpha_inv.count; i++) {
+                read_item(r, &item);
+                if (i < 40) p->u.alpha_inv.items[i] = item;
+            }
+            break;
+        }
         p->u.equipment.entity = fern_read_i32(r);
         p->u.equipment.slot = fern_read_i16(r);
         p->u.equipment.item = fern_read_i16(r);
-        p->u.equipment.damage = fern_read_i16(r);
+        p->u.equipment.damage = v->wire >= 8 ? fern_read_i16(r) : 0;
         break;
     case 0x06: // Spawn position
         p->u.spawn.x = fern_read_i32(r);
@@ -111,11 +139,11 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
     case 0x07: // Use entity
         fern_read_bytes(r, 9);
         break;
-    case 0x08: // Health
-        p->u.health.health = fern_read_i16(r);
+    case 0x08: // Health: a byte before layout 7
+        p->u.health.health = v->wire >= 7 ? fern_read_i16(r) : fern_read_i8(r);
         break;
-    case 0x09: // Respawn
-        p->u.respawn.dimension = fern_read_i8(r);
+    case 0x09: // Respawn: no body before layout 12
+        p->u.respawn.dimension = v->wire >= 12 ? fern_read_i8(r) : 0;
         break;
     case 0x0A: // On ground
         p->u.move.on_ground = fern_read_u8(r);
@@ -181,7 +209,7 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
         p->u.pickup.entity = fern_read_i32(r);
         p->u.pickup.item.id = fern_read_i16(r);
         p->u.pickup.item.count = fern_read_i8(r);
-        p->u.pickup.item.damage = fern_read_i16(r);
+        p->u.pickup.item.damage = v->wire >= 8 ? fern_read_i16(r) : 0;
         p->u.pickup.x = fern_read_i32(r);
         p->u.pickup.y = fern_read_i32(r);
         p->u.pickup.z = fern_read_i32(r);
@@ -198,7 +226,8 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
         p->u.object.x = fern_read_i32(r);
         p->u.object.y = fern_read_i32(r);
         p->u.object.z = fern_read_i32(r);
-        thrower = fern_read_i32(r);
+        // The thrower and its speed come in layout 13.
+        thrower = v->wire >= 13 ? fern_read_i32(r) : 0;
         if (thrower > 0) fern_read_bytes(r, 6);
         break;
     }
@@ -210,7 +239,8 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
         p->u.mob.z = fern_read_i32(r);
         p->u.mob.yaw = fern_read_i8(r);
         p->u.mob.pitch = fern_read_i8(r);
-        read_meta(r, v, &p->u.mob.meta);
+        p->u.mob.meta.count = 0;
+        if (v->wire >= 8) read_meta(r, v, &p->u.mob.meta);
         break;
     case 0x19: // Painting
         fern_read_i32(r);
@@ -339,7 +369,10 @@ FernDecode fern_packet_decode(const FernVersion *v, const uint8_t *data, size_t 
     case 0x67: // Set slot
         p->u.set_slot.window = fern_read_i8(r);
         p->u.set_slot.slot = fern_read_i16(r);
-        read_item(r, &p->u.set_slot.item);
+        if (v->wire == 7)
+            read_item_b(r, &p->u.set_slot.item);
+        else
+            read_item(r, &p->u.set_slot.item);
         break;
     case 0x68: { // Window items
         FernItem item;
@@ -397,8 +430,14 @@ void fern_send_login(FernWriter *w, const FernVersion *v, const char *name) {
     fern_write_u8(w, 0x01);
     fern_write_i32(w, v->pvn);
     write_str(w, v, name);
-    fern_write_i64(w, 0);
-    fern_write_u8(w, 0);
+    // Before layout 11, a password follows. The server does not read it.
+    if (v->wire < 11) write_str(w, v, "Password");
+    if (v->wire >= 3) {
+        fern_write_i64(w, 0);
+        // The dimension byte must be 0. The server reads some values as a
+        // mark of a proxy.
+        fern_write_u8(w, 0);
+    }
 }
 
 void fern_send_chat(FernWriter *w, const FernVersion *v, const char *text) {
@@ -456,19 +495,39 @@ void fern_send_dig(FernWriter *w, const FernVersion *v, int status, int x, int y
 
 void fern_send_place(FernWriter *w, const FernVersion *v, int x, int y, int z, int face,
                      const FernItem *item) {
-    (void)v;
     fern_write_u8(w, 0x0F);
+    if (v->wire <= 6) {
+        // Alpha: the item ID comes first, with no count and no damage.
+        fern_write_i16(w, (int16_t)(item && item->id > 0 ? item->id : -1));
+        fern_write_i32(w, x);
+        fern_write_u8(w, (uint8_t)y);
+        fern_write_i32(w, z);
+        fern_write_u8(w, (uint8_t)face);
+        return;
+    }
     fern_write_i32(w, x);
     fern_write_u8(w, (uint8_t)y);
     fern_write_i32(w, z);
     fern_write_u8(w, (uint8_t)face);
+    if (v->wire == 7 && item && item->id >= 0) {
+        fern_write_i16(w, item->id);
+        fern_write_u8(w, (uint8_t)item->count);
+        fern_write_u8(w, (uint8_t)item->damage);
+        return;
+    }
     write_item(w, item);
 }
 
 void fern_send_hold(FernWriter *w, const FernVersion *v, int slot) {
-    (void)v;
     fern_write_u8(w, 0x10);
     fern_write_i16(w, (int16_t)slot);
+}
+
+void fern_send_hold_item(FernWriter *w, const FernVersion *v, int entity, int item) {
+    // Alpha selects the hotbar slot that holds an item ID.
+    fern_write_u8(w, 0x10);
+    fern_write_i32(w, entity);
+    fern_write_i16(w, (int16_t)(item > 0 ? item : 0));
 }
 
 void fern_send_animation(FernWriter *w, const FernVersion *v, int entity, int anim) {
@@ -479,17 +538,15 @@ void fern_send_animation(FernWriter *w, const FernVersion *v, int entity, int an
 }
 
 void fern_send_respawn(FernWriter *w, const FernVersion *v, int dimension) {
-    (void)v;
     fern_write_u8(w, 0x09);
-    fern_write_u8(w, (uint8_t)dimension);
+    if (v->wire >= 12) fern_write_u8(w, (uint8_t)dimension);
 }
 
 void fern_send_use_entity(FernWriter *w, const FernVersion *v, int self, int target, int left) {
-    (void)v;
     fern_write_u8(w, 0x07);
     fern_write_i32(w, self);
     fern_write_i32(w, target);
-    fern_write_u8(w, (uint8_t)(left != 0));
+    if (v->wire >= 5) fern_write_u8(w, (uint8_t)(left != 0));
 }
 
 void fern_send_disconnect(FernWriter *w, const FernVersion *v, const char *reason) {

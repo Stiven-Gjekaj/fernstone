@@ -37,6 +37,8 @@ typedef struct {
         struct { int32_t entity; int64_t seed; int8_t dimension; } login;
         struct { int64_t time; } time;
         struct { int32_t entity; int16_t slot, item, damage; } equipment;
+        // Alpha (layout 6 and older): 0x05 sends a whole inventory array.
+        struct { int32_t type; int16_t count; FernItem items[40]; } alpha_inv;
         struct { int32_t x, y, z; } spawn;
         struct { int16_t health; } health;
         struct { int8_t dimension; } respawn;
@@ -120,6 +122,8 @@ void fern_send_dig(FernWriter *w, const FernVersion *v, int status, int x, int y
 void fern_send_place(FernWriter *w, const FernVersion *v, int x, int y, int z, int face,
                      const FernItem *item);
 void fern_send_hold(FernWriter *w, const FernVersion *v, int slot);
+// Alpha (layout 6 and older) selects a slot by the item ID that it holds.
+void fern_send_hold_item(FernWriter *w, const FernVersion *v, int entity, int item);
 void fern_send_animation(FernWriter *w, const FernVersion *v, int entity, int anim);
 void fern_send_respawn(FernWriter *w, const FernVersion *v, int dimension);
 void fern_send_use_entity(FernWriter *w, const FernVersion *v, int self, int target, int left);
