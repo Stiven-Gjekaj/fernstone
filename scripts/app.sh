@@ -14,7 +14,7 @@ mkdir -p "$APP"
 
 # shellcheck disable=SC2046
 "$ROOT/build.sh" "$APP/Fernstone" $DEBUG -I"$ROOT/core" -I"$ROOT/core/render" -I"$ROOT/core/world" \
-    -I"$ROOT/core/proto/beta" \
+    -I"$ROOT/core/proto/beta" -I"$ROOT/core/assets" \
     $(ls "$ROOT"/core/*.c "$ROOT"/core/*/*.c "$ROOT"/core/proto/beta/*.c 2>/dev/null) \
     $(ls "$ROOT"/platform/ios6/*.m) \
     -lz -framework Foundation -framework UIKit -framework CoreGraphics -framework QuartzCore \
