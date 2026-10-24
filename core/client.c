@@ -202,6 +202,11 @@ static void handle(FernClient *c, const FernPacket *p) {
         fern_entity_place(e, p->u.mob.x, p->u.mob.y, p->u.mob.z);
         e->yaw = p->u.mob.yaw * 360.0f / 256.0f;
         e->pitch = p->u.mob.pitch * 360.0f / 256.0f;
+        {
+            int i;
+            for (i = 0; i < p->u.mob.meta.count; i++)
+                if (p->u.mob.meta.entry[i].index == 16) e->meta16 = (uint8_t)p->u.mob.meta.entry[i].value;
+        }
         break;
     case 0x1D:
         fern_entity_remove(&c->ents, p->u.entity.entity);
@@ -226,8 +231,10 @@ static void handle(FernClient *c, const FernPacket *p) {
         int i;
         e = fern_entity_get(&c->ents, p->u.meta.entity);
         if (!e) break;
-        for (i = 0; i < p->u.meta.meta.count; i++)
+        for (i = 0; i < p->u.meta.meta.count; i++) {
             if (p->u.meta.meta.entry[i].index == 0) e->crouch = (p->u.meta.meta.entry[i].value & 2) != 0;
+            if (p->u.meta.meta.entry[i].index == 16) e->meta16 = (uint8_t)p->u.meta.meta.entry[i].value;
+        }
         break;
     }
     case 0x32:

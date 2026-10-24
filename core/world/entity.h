@@ -14,6 +14,7 @@ typedef struct {
     uint8_t kind;
     uint8_t type;           // The mob or object type of the protocol.
     uint8_t crouch;
+    uint8_t meta16;         // Metadata 16: the wool of a sheep, the size of a slime.
     char name[32];
     int16_t item;           // The item in the hand, or the item of a drop.
     double x, y, z;         // The position that the server sent last.
